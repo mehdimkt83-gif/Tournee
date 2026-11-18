@@ -1,0 +1,1780 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
+<title>Gestion de Tournées</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>
+:root{--bg:#0d1117;--surf:#161b22;--surf2:#1c2330;--border:rgba(255,255,255,0.08);--fg:#e6edf3;--muted:#8b949e;--accent:#f0b429;--accent2:#58a6ff;--ok:#3fb950;--err:#f85149;--warn:#f0b429;--panel-w:380px;--hh:52px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Syne',sans-serif;background:var(--bg);color:var(--fg);overflow:hidden}
+#app-tabs{position:fixed;top:0;left:0;right:0;height:var(--hh);background:var(--surf);border-bottom:1px solid var(--border);display:flex;align-items:stretch;z-index:1000}
+.tab-btn{flex:1;border:none;background:transparent;color:var(--muted);font-family:'Syne',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;border-bottom:3px solid transparent;padding:0 12px;display:flex;align-items:center;justify-content:center;gap:8px}
+.tab-btn:hover{color:var(--fg);background:rgba(255,255,255,.04)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);background:rgba(240,180,41,.06)}
+.badge-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--err);color:#fff;font-size:11px;font-weight:700}
+.badge-count.hidden{display:none}
+.page{position:fixed;top:var(--hh);left:0;right:0;bottom:0;display:none}
+.page.active{display:flex}
+#page-carte{flex-direction:row}
+#map{flex:1}
+#panel{width:var(--panel-w);background:var(--surf);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.ps{padding:14px 16px;border-bottom:1px solid var(--border)}
+.ps label{display:block;font-size:11px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;font-weight:600}
+.stats-row{display:flex;gap:8px;flex-wrap:wrap}
+.stat-chip{flex:1;min-width:70px;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:8px 10px;text-align:center}
+.stat-chip .val{font-size:20px;font-weight:800;color:var(--fg);font-family:'DM Mono',monospace}
+.stat-chip .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;margin-top:2px}
+.stat-chip.warn .val{color:var(--warn)}
+.stat-chip.ok .val{color:var(--ok)}
+.inp{width:100%;padding:8px 10px;background:var(--surf2);border:1px solid var(--border);border-radius:8px;color:var(--fg);font-family:'DM Mono',monospace;font-size:14px;outline:none;transition:border .2s}
+.inp:focus{border-color:var(--accent2)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surf2);color:var(--fg);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .18s;white-space:nowrap}
+.btn:hover{background:var(--surf);border-color:rgba(255,255,255,.18)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#0d1117}
+.btn.primary:hover{background:#f5c33a}
+.btn.danger{background:rgba(248,81,73,.12);border-color:var(--err);color:var(--err)}
+.btn.danger:hover{background:rgba(248,81,73,.25)}
+.btn.sm{padding:5px 10px;font-size:12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.drop-zone{border:2px dashed var(--border);border-radius:12px;padding:16px;text-align:center;cursor:pointer;transition:all .2s;color:var(--muted);font-size:13px}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent2);color:var(--accent2);background:rgba(88,166,255,.04)}
+.drop-zone input{display:none}
+#tourList{flex:1;overflow-y:auto;padding:10px 12px}
+#tourList::-webkit-scrollbar{width:5px}
+#tourList::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.tour-card{background:var(--surf2);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden}
+.tour-card-header{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer}
+.tour-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.tour-title{flex:1;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tour-meta{font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;flex-shrink:0}
+.tour-actions{display:flex;gap:4px;flex-shrink:0}
+.tour-body{padding:0 12px 12px 12px;border-top:1px solid var(--border)}
+.tour-body.hidden{display:none}
+.point-list{max-height:180px;overflow-y:auto;margin:8px 0}
+.point-item{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;cursor:grab}
+.point-item:hover{background:rgba(255,255,255,.05)}
+.point-item .pos{color:var(--muted);width:24px;text-align:right;flex-shrink:0}
+.point-item .bc{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.point-item .rm{cursor:pointer;color:var(--err);opacity:0;font-size:14px}
+.point-item:hover .rm{opacity:1}
+.point-item.dragging{opacity:.4}
+.point-item.drag-over-top{border-top:2px solid var(--accent2)}
+.point-item.drag-over-bottom{border-bottom:2px solid var(--accent2)}
+/* SCANNER */
+#page-scanner{background:var(--bg);flex-direction:column;align-items:center;justify-content:flex-start;padding:24px 16px;overflow-y:auto;gap:20px}
+.scanner-card{width:min(700px,100%);background:var(--surf);border:1px solid var(--border);border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:18px}
+.scanner-display{min-height:200px;border-radius:16px;border:2px solid var(--border);background:#060a10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;transition:border-color .3s;padding:20px}
+.scanner-display.state-ok{border-color:var(--ok);background:rgba(63,185,80,.04)}
+.scanner-display.state-err{border-color:var(--err);background:rgba(248,81,73,.04)}
+.display-main{font-size:clamp(48px,10vw,120px);font-weight:800;letter-spacing:2px;text-align:center;line-height:1;color:var(--muted);font-family:'DM Mono',monospace}
+.display-main.ok{color:var(--ok)}
+.display-main.err{color:var(--err)}
+.display-sub{font-size:18px;color:var(--muted);font-family:'DM Mono',monospace;text-align:center}
+.display-sub.ok{color:var(--ok)}
+.display-sub.err{color:var(--err)}
+.scan-input-row{display:flex;gap:10px}
+.scan-input{flex:1;font-size:18px;padding:14px 16px;border-radius:12px;border:1px solid var(--border);background:var(--surf2);color:var(--fg);font-family:'DM Mono',monospace;outline:none}
+.scan-input:focus{border-color:var(--accent2)}
+.scan-input:disabled{opacity:.4}
+.history-table{width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:13px}
+.history-table th{color:var(--muted);text-align:left;padding:6px 8px;font-weight:600;font-size:11px;text-transform:uppercase;border-bottom:1px solid var(--border)}
+.history-table td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.04)}
+.history-table .ok{color:var(--ok)}
+.history-table .err{color:var(--err)}
+.history-wrap{max-height:260px;overflow-y:auto;border-radius:10px;border:1px solid var(--border)}
+.scanner-stats{display:flex;gap:10px;flex-wrap:wrap}
+.scanner-stat{flex:1;min-width:100px;background:var(--surf2);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center}
+.scanner-stat .v{font-size:28px;font-weight:800;font-family:'DM Mono',monospace}
+.scanner-stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;margin-top:4px}
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--surf);border:1px solid var(--border);border-radius:16px;padding:24px;width:min(480px,100%);max-height:85vh;overflow-y:auto;display:flex;flex-direction:column;gap:16px}
+.modal h2{font-size:18px;font-weight:800}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end}
+/* LEAFLET */
+.tour-label-tt{background:rgba(13,17,23,0.85)!important;border:none!important;border-radius:8px!important;color:#fff!important;font-weight:800!important;font-size:13px!important;padding:4px 10px!important;white-space:nowrap!important}
+.tour-label-tt::before{display:none!important}
+.cp-tooltip{background:rgba(13,17,23,0.72)!important;border:none!important;border-radius:6px!important;color:#e6edf3!important;font-size:11px!important;font-weight:700!important;padding:2px 7px!important;white-space:nowrap!important;pointer-events:none!important}
+.cp-tooltip::before{display:none!important}
+.leaflet-control-zoom a,.leaflet-draw-toolbar a{background:#2a3441!important;color:#fff!important;border-color:#4a5568!important;width:33px!important;height:33px!important;line-height:33px!important;font-size:16px!important}
+.leaflet-control-zoom a:hover,.leaflet-draw-toolbar a:hover{background:#3a4a5c!important;color:#f0b429!important;border-color:#f0b429!important}
+.leaflet-draw-toolbar a{background-size:300px 33px!important}
+.empty-state{color:var(--muted);font-size:13px;text-align:center;padding:20px}
+#add-tour-popup{position:fixed;z-index:3000;background:#0d1117;border:2px solid var(--accent);border-radius:14px;padding:16px;min-width:220px;max-width:300px;box-shadow:0 8px 40px rgba(0,0,0,.9);display:none}
+#add-tour-popup h3{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.add-tour-item{padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;transition:background .15s}
+.add-tour-item:hover{background:var(--surface2)}
+.add-tour-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+#add-tour-close{position:absolute;top:8px;right:10px;cursor:pointer;color:var(--muted);font-size:16px;border:none;background:none;color:var(--muted)}
+.stat-chip.filter-active{outline:2px solid var(--accent2);outline-offset:2px}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;font-weight:700;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+
+/* ── MODAL AUTO DÉCOUP ── */
+#autoDecoupModal{display:none}#autoDecoupModal.open{display:flex}
+</style>
+</head>
+<body>
+<div id="app-tabs">
+  <button class="tab-btn active" onclick="switchTab('carte')"><span style="font-size:18px">🗺️</span> Carte & Tournées</button>
+  <button class="tab-btn" onclick="switchTab('scanner')"><span style="font-size:18px">📦</span> Scanner<span class="badge-count hidden" id="history-badge">0</span></button>
+</div>
+
+<!-- PAGE CARTE -->
+<div id="page-carte" class="page active">
+  <div id="map"></div>
+  <div id="panel">
+    <div class="ps">
+      <label>Fichier Excel</label>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv"/>
+        <div id="dropLabel">📂 Cliquez ou glissez votre Excel ici</div>
+      </div>
+    </div>
+    <div class="ps">
+      <div class="stats-row">
+        <div class="stat-chip" id="btn-filter-all" onclick="setFilter('all')" style="cursor:pointer" title="Tous les points"><div class="val" id="stat-total">0</div><div class="lbl">Total</div></div>
+        <div class="stat-chip warn" id="btn-filter-unassigned" onclick="setFilter('unassigned')" style="cursor:pointer" title="Non assignés uniquement"><div class="val" id="stat-unassigned">0</div><div class="lbl">Non assignés</div></div>
+        <div class="stat-chip ok" id="btn-filter-assigned" onclick="setFilter('assigned')" style="cursor:pointer" title="Assignés uniquement"><div class="val" id="stat-assigned">0</div><div class="lbl">Assignés</div></div>
+        <div class="stat-chip"><div class="val" id="stat-sel">0</div><div class="lbl">Sélection</div></div>
+      </div>
+    </div>
+    <div class="ps">
+      <label>Point de départ global 🏠</label>
+      <div class="row" style="margin-bottom:6px">
+        <input class="inp" type="number" id="depotLat" placeholder="Latitude" step="any" style="flex:1"/>
+        <input class="inp" type="number" id="depotLon" placeholder="Longitude" step="any" style="flex:1"/>
+      </div>
+      <div class="row">
+        <button class="btn sm" id="btnSetDepot">📍 Définir</button>
+        <button class="btn sm" id="btnPickDepot">🖱️ Carte</button>
+        <button class="btn sm danger" id="btnClearDepot" style="display:none">✕ Dépôt</button>
+      </div>
+      <div id="depotInfo" style="display:none;margin-top:6px">
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:rgba(88,166,255,.15);border:1px solid var(--accent2);color:var(--accent2);font-size:12px;font-weight:700">🏠 <span id="depotCoords"></span></span>
+      </div>
+    </div>
+    <div class="ps">
+      <label>Nom de la tournée</label>
+      <input class="inp" type="text" id="tourName" placeholder="ex: A1, Zone-Nord…" style="margin-bottom:10px"/>
+      <div class="row">
+        <button class="btn primary" id="btnAssign">✅ Enregistrer</button>
+        <button class="btn" id="btnClearSel">🗑️ Vider sél.</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">Dessinez un rectangle/polygone puis cliquez "Enregistrer".</div>
+    </div>
+    <div class="ps">
+      <div class="row">
+        <button class="btn" id="btnOptimize">⚡ Optimiser tout</button>
+        <button class="btn primary" id="btnAutoDecoup" onclick="openAutoDecoup()" style="background:var(--accent2);border-color:var(--accent2)">🤖 Découpage auto</button>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap">
+          <input type="checkbox" id="chkRetour" style="accent-color:var(--accent)"/> Retour dépôt
+        </label>
+        <button class="btn primary" id="btnExport">⬇️ JSON</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="btnToggleCP">🗂️ CP couleurs : ON</button>
+      </div>
+    </div>
+    <div id="tourList"><div class="empty-state">Chargez votre Excel.<br/>Colonnes A (codes-barres) et Z (GPS).</div></div>
+  </div>
+</div>
+
+<!-- PAGE SCANNER -->
+<div id="page-scanner" class="page">
+  <div class="scanner-card">
+    <div style="font-size:20px;font-weight:800">Scanner de tournée</div>
+    <div>
+      <label style="display:block;font-size:11px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Fichier JSON exporté</label>
+      <div class="drop-zone" id="scanDropZone" onclick="document.getElementById('scanFileInput').click()">
+        <input type="file" id="scanFileInput" accept=".json"/>
+        <div id="scanDropLabel">📂 Glissez ou cliquez pour charger le JSON</div>
+      </div>
+    </div>
+    <div class="scanner-stats">
+      <div class="scanner-stat"><div class="v" id="sc-total">0</div><div class="l">Codes</div></div>
+      <div class="scanner-stat"><div class="v" id="sc-tours">0</div><div class="l">Tournées</div></div>
+      <div class="scanner-stat"><div class="v ok" id="sc-found">0</div><div class="l">Trouvés</div></div>
+      <div class="scanner-stat"><div class="v err" id="sc-unknown">0</div><div class="l">Inconnus</div></div>
+    </div>
+    <div class="scanner-display" id="scanDisplay">
+      <div class="display-main" id="scanMain">EN ATTENTE</div>
+      <div class="display-sub" id="scanSub"></div>
+    </div>
+    <div class="scan-input-row">
+      <input class="scan-input" id="scanInput" type="text" placeholder="Place le curseur ici et scanne…" disabled/>
+      <button class="btn" id="scanClear" disabled>Effacer</button>
+      <button class="btn danger" id="scanResetHist">🗑️ Hist.</button>
+    </div>
+
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+      <div style="font-size:11px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;font-weight:700;letter-spacing:.06em">
+        📍 Colis inconnu — recherche par adresse
+      </div>
+      <div style="display:flex;gap:8px">
+        <input class="scan-input" id="addrInput" type="text"
+          placeholder="Ex: 41 Avenue Henri Barbusse 69100 Villeurbanne"
+          style="flex:1;font-size:13px"
+          onkeydown="if(event.key==='Enter') rechercherAdresse()"/>
+        <button class="btn primary" onclick="rechercherAdresse()" style="white-space:nowrap;padding:0 14px">🔍 Chercher</button>
+      </div>
+      <div id="addrResult" style="display:none;margin-top:10px;padding:12px 14px;border-radius:10px;font-size:14px;font-weight:700;border:2px solid var(--border)"></div>
+    </div>
+    <div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Historique</div>
+      <div class="history-wrap">
+        <table class="history-table">
+          <thead><tr><th>#</th><th>Code</th><th>Tournée</th><th>Position</th></tr></thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDIT TOUR -->
+<div class="modal-overlay hidden" id="editModal">
+  <div class="modal">
+    <h2>✏️ Modifier la tournée</h2>
+    <div>
+      <label style="font-size:12px;color:var(--muted)">Nom</label>
+      <input class="inp" type="text" id="editTourName" style="margin-top:6px"/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeEditModal()">Annuler</button>
+      <button class="btn primary" onclick="saveEditModal()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DEPOT TOURNEE -->
+<div class="modal-overlay hidden" id="depotTourModal">
+  <div class="modal">
+    <h2>🏠 Départ — <span id="depotTourTitle"></span></h2>
+    <p style="font-size:13px;color:var(--muted)">Laissez vide pour utiliser le départ global.</p>
+    <div class="row">
+      <input class="inp" type="number" id="depotTourLat" placeholder="Latitude" step="any" style="flex:1"/>
+      <input class="inp" type="number" id="depotTourLon" placeholder="Longitude" step="any" style="flex:1"/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btnDepotTourClear">Supprimer</button>
+      <button class="btn" onclick="closeDepotTourModal()">Annuler</button>
+      <button class="btn primary" onclick="saveDepotTourModal()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL QR -->
+<div class="modal-overlay hidden" id="qrModal">
+  <div class="modal" style="align-items:center;text-align:center">
+    <h2 id="qrTitle">QR Code</h2>
+    <p style="font-size:13px;color:var(--muted)">Le livreur scanne ce QR code avec l'application mobile.</p>
+    <div id="qrCanvas" style="margin:12px 0;background:#fff;padding:12px;border-radius:8px"></div>
+    <p id="qrSizeInfo" style="font-size:12px;color:var(--muted)"></p>
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('qrModal').classList.add('hidden')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="add-tour-popup">
+  <button id="add-tour-close" onclick="hideAddToTourPopup()">✕</button>
+  <h3>Ajouter à la tournée</h3>
+  <div id="add-tour-list"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+<script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════
+//  ÉTAT GLOBAL
+// ══════════════════════════════════════════════════════
+var points=[], tours=[], selection=new Set(), editingTourId=null;
+var currentFilter='all';
+function setFilter(f){
+  currentFilter=f;
+  ['all','assigned','unassigned'].forEach(function(k){
+    var el=document.getElementById('btn-filter-'+k);
+    if(el) el.classList.toggle('filter-active',k===f);
+  });
+  drawAllPoints();
+}
+var depot=null, pickingDepot=false, editingDepotTourId=null;
+var scanMap={}, foundCount=0, unknownCount=0, historyRows=[];
+var tourIdCounter=0;
+
+// ══════════════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════════════
+function toast(msg,dur){
+  dur=dur||2500;
+  var el=document.getElementById('toast');
+  el.textContent=msg; el.style.opacity='1';
+  setTimeout(function(){el.style.opacity='0';},dur);
+}
+
+// ══════════════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════════════
+function switchTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(function(b,i){b.classList.toggle('active',['carte','scanner'][i]===tab);});
+  document.getElementById('page-carte').classList.toggle('active',tab==='carte');
+  document.getElementById('page-scanner').classList.toggle('active',tab==='scanner');
+  if(tab==='carte') map.invalidateSize();
+}
+
+// ══════════════════════════════════════════════════════
+//  CARTE
+// ══════════════════════════════════════════════════════
+var map=L.map('map').setView([44.010244,4.888484],11);
+L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',{
+  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  subdomains:'abc',maxZoom:20,crossOrigin:true
+}).addTo(map);
+
+var drawnItems=new L.FeatureGroup().addTo(map);
+var tourDrawnLayers={};
+map.addControl(new L.Control.Draw({
+  draw:{marker:false,circle:false,circlemarker:false,polyline:false,rectangle:true,polygon:true},
+  edit:{featureGroup:drawnItems}
+}));
+var markersLayer=L.layerGroup().addTo(map);
+
+function makeIcon(color){
+  return L.divIcon({className:'',
+    html:'<div style="width:11px;height:11px;border-radius:50%;background:'+color+';border:2px solid rgba(255,255,255,.8);box-shadow:0 1px 4px rgba(0,0,0,.6)"></div>',
+    iconSize:[11,11],iconAnchor:[5,5]});
+}
+
+function getAssignedBarcodes(){var s=new Set();tours.forEach(function(t){t.barcodes.forEach(function(b){s.add(b);});});return s;}
+
+function getTourColor(barcode){
+  for(var i=0;i<tours.length;i++) if(tours[i].barcodes.indexOf(barcode)>=0) return tours[i].color;
+  return null;
+}
+
+function drawAllPoints(){
+  markersLayer.clearLayers();
+  var assigned=getAssignedBarcodes();
+  var unassigned=0;
+  points.forEach(function(p){
+    var isAssigned=assigned.has(p.barcode);
+    if(!isAssigned) unassigned++; // toujours compter même si filtré
+    if(currentFilter==='assigned'&&!isAssigned) return;
+    if(currentFilter==='unassigned'&&isAssigned) return;
+    var color;
+    if(isAssigned){
+      color=getTourColor(p.barcode);
+    } else {
+      color=getCPColor(p);
+    }
+    var tipContent=p.barcode;
+    if(p.cp||p.ville) tipContent+=' — '+(p.cp||'')+' '+(p.ville||'');
+    if(p.adresse) tipContent+='<br/>'+p.adresse;
+    var marker=L.marker([p.lat,p.lon],{icon:makeIcon(color)})
+      .bindTooltip(tipContent,{direction:'top',sticky:false})
+      .addTo(markersLayer);
+    if(!assigned.has(p.barcode)){
+      (function(pt,mk){
+        mk.on('click',function(e){
+          if(pickingDepot) return;
+          showAddToTourPopup(pt,e.latlng);
+        });
+      })(p,marker);
+    } else {
+      (function(pt,mk){
+        mk.on('click',function(e){
+          if(pickingDepot) return;
+          showUnassignPopup(pt,e.latlng);
+        });
+      })(p,marker);
+    }
+  });
+  updateStats(unassigned);
+}
+
+function updateStats(unassigned){
+  var u=unassigned!==undefined?unassigned:countUnassigned();
+  document.getElementById('stat-total').textContent=points.length;
+  document.getElementById('stat-unassigned').textContent=u;
+  document.getElementById('stat-assigned').textContent=points.length-u;
+  document.getElementById('stat-sel').textContent=selection.size;
+}
+function countUnassigned(){var a=getAssignedBarcodes();return points.filter(function(p){return !a.has(p.barcode);}).length;}
+
+// ══════════════════════════════════════════════════════
+//  CODES POSTAUX — coloration par distance GPS
+// ══════════════════════════════════════════════════════
+var cpVisible=true;
+var CP_PALETTE=['#e63946','#2196f3','#ff9800','#2e7d32','#7b1fa2','#00838f','#6d4c41','#c62828','#1565c0','#ef6c00','#558b2f','#ad1457'];
+var cpColorIdx={};
+
+function assignCPColors(){
+  var cpPts={};
+  points.forEach(function(p){
+    if(!p.cp||!p.lat||!p.lon) return;
+    if(!cpPts[p.cp]) cpPts[p.cp]={lats:[],lons:[]};
+    cpPts[p.cp].lats.push(p.lat); cpPts[p.cp].lons.push(p.lon);
+  });
+  var cps=Object.keys(cpPts);
+  var centroids={};
+  cps.forEach(function(cp){
+    var d=cpPts[cp];
+    centroids[cp]={
+      lat:d.lats.reduce(function(a,b){return a+b;},0)/d.lats.length,
+      lon:d.lons.reduce(function(a,b){return a+b;},0)/d.lons.length
+    };
+  });
+  var SEUIL=12;
+  var adj={};
+  cps.forEach(function(cp){adj[cp]=new Set();});
+  for(var i=0;i<cps.length;i++){
+    for(var j=i+1;j<cps.length;j++){
+      var a=centroids[cps[i]],b=centroids[cps[j]];
+      var dlat=(b.lat-a.lat)*Math.PI/180;
+      var dlon=(b.lon-a.lon)*Math.PI/180;
+      var la=(a.lat+b.lat)/2*Math.PI/180;
+      var dist=Math.sqrt(dlat*dlat+(dlon*Math.cos(la))*(dlon*Math.cos(la)))*6371;
+      if(dist<SEUIL){adj[cps[i]].add(cps[j]);adj[cps[j]].add(cps[i]);}
+    }
+  }
+  var sorted=cps.slice().sort(function(a,b){return adj[b].size-adj[a].size;});
+  sorted.forEach(function(cp){delete cpColorIdx[cp];});
+  sorted.forEach(function(cp){
+    var used=new Set();
+    adj[cp].forEach(function(n){if(cpColorIdx[n]!==undefined) used.add(cpColorIdx[n]);});
+    var idx=0; while(used.has(idx)) idx++;
+    cpColorIdx[cp]=idx%CP_PALETTE.length;
+  });
+}
+function getCPColor(p){
+  if(!cpVisible||!p.cp) return '#ff2222';
+  if(cpColorIdx[p.cp]===undefined) return '#ff2222';
+  return CP_PALETTE[cpColorIdx[p.cp]];
+}
+document.getElementById('btnToggleCP').addEventListener('click',function(){
+  cpVisible=!cpVisible;
+  document.getElementById('btnToggleCP').textContent='🗂️ CP couleurs : '+(cpVisible?'ON':'OFF');
+  drawAllPoints();
+});
+
+// ══════════════════════════════════════════════════════
+//  EXCEL
+// ══════════════════════════════════════════════════════
+function cellVal(sheet,r,c){var cell=sheet[XLSX.utils.encode_cell({r:r,c:c})];return(cell&&cell.v!=null)?String(cell.v).trim():'';}
+function parseLatLon(s){
+  if(!s) return null;
+  var t=String(s).trim().replace(/[;|]/g,',').replace(/[()[\]]/g,'');
+  var parts=t.split(/[, ]+/).filter(Boolean);
+  if(parts.length>=2){
+    var a=parseFloat(parts[0].replace(',','.')), b=parseFloat(parts[1].replace(',','.'));
+    if(isFinite(a)&&isFinite(b)){
+      if(Math.abs(a)<=90&&Math.abs(b)<=180) return{lat:a,lon:b};
+      if(Math.abs(b)<=90&&Math.abs(a)<=180) return{lat:b,lon:a};
+    }
+  }
+  return null;
+}
+function loadSheet(sheet){
+  var range=XLSX.utils.decode_range(sheet['!ref']);
+
+  // ── Détection automatique des colonnes par nom de header ──
+  // Noms possibles pour chaque champ (plusieurs formats)
+  var COL_NAMES={
+    barcode:  ['Tracking No.','Tracking No','tracking no'],
+    gps:      ['Receiver to (Latitude,Longitude)','Receiver to(Latitude,Longitude)'],
+    cp:       ["Receiver's Zip Code","Receiver Zip Code","Zip Code"],
+    ville:    ['Receiver City',"Receiver's City",'City'],
+    adresse:  ["Receiver's Detail Address","Receiver Detail Address",'Detail Address'],
+    tel:      ["Receiver's Contact Number","Receiver's Phone Number",'Contact Number']
+  };
+  var cols={barcode:-1,gps:-1,cp:-1,ville:-1,adresse:-1,tel:-1};
+  // Lire la ligne de headers (première ligne)
+  for(var c=range.s.c;c<=range.e.c;c++){
+    var hdr=cellVal(sheet,range.s.r,c);
+    if(!hdr) continue;
+    var hdrLow=String(hdr).trim().toLowerCase();
+    Object.keys(COL_NAMES).forEach(function(field){
+      if(cols[field]>=0) return;
+      COL_NAMES[field].forEach(function(name){
+        if(name.toLowerCase()===hdrLow) cols[field]=c;
+      });
+    });
+  }
+
+  // Fallback sur les index connus si header non trouvé
+  if(cols.barcode<0) cols.barcode=0;   // col A
+  if(cols.gps<0){
+    // Essayer col 27 (ancien format) puis col 52 (nouveau format)
+    var v27=cellVal(sheet,range.s.r+1,27), v52=cellVal(sheet,range.s.r+1,52);
+    cols.gps=(parseLatLon(v52)?52:(parseLatLon(v27)?27:52));
+  }
+  if(cols.cp<0)      cols.cp=     (cols.gps===52?31:20);
+  if(cols.ville<0)   cols.ville=  (cols.gps===52?30:19);
+  if(cols.adresse<0) cols.adresse=(cols.gps===52?32:21);
+  if(cols.tel<0)     cols.tel=    (cols.gps===52?37:13);
+
+  var tmp=[];
+  for(var r=range.s.r+1;r<=range.e.r;r++){
+    var barcode=cellVal(sheet,r,cols.barcode);
+    var gps=cellVal(sheet,r,cols.gps);
+    if(!barcode||!gps) continue;
+    var ll=parseLatLon(gps); if(!ll) continue;
+    tmp.push({barcode:barcode,lat:ll.lat,lon:ll.lon,
+      telephone:cellVal(sheet,r,cols.tel),
+      ville:cellVal(sheet,r,cols.ville),
+      cp:cellVal(sheet,r,cols.cp),
+      adresse:cellVal(sheet,r,cols.adresse)});
+  }
+  var seen=new Set();
+  points=tmp.filter(function(p){return !seen.has(p.barcode)&&seen.add(p.barcode);});
+  Object.keys(cpColorIdx).forEach(function(k){delete cpColorIdx[k];});
+  assignCPColors();
+  drawAllPoints();
+  if(points.length) map.fitBounds(L.latLngBounds(points.map(function(p){return[p.lat,p.lon];})).pad(.1));
+  document.getElementById('dropLabel').textContent='✅ '+points.length+' points chargés';
+  refreshTourList();
+}
+async function handleExcelFile(file){
+  var buf=await file.arrayBuffer();
+  var wb=XLSX.read(buf,{type:'array'});
+  var sn=wb.SheetNames.indexOf('Feuil1')>=0?'Feuil1':wb.SheetNames[0];
+  loadSheet(wb.Sheets[sn]);
+}
+document.getElementById('fileInput').addEventListener('change',function(e){if(e.target.files[0]) handleExcelFile(e.target.files[0]);});
+var dz=document.getElementById('dropZone');
+dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('drag-over');});
+dz.addEventListener('dragleave',function(){dz.classList.remove('drag-over');});
+dz.addEventListener('drop',function(e){e.preventDefault();dz.classList.remove('drag-over');if(e.dataTransfer.files[0]) handleExcelFile(e.dataTransfer.files[0]);});
+
+// ══════════════════════════════════════════════════════
+//  SÉLECTION DESSIN
+// ══════════════════════════════════════════════════════
+function ptInRect(ll,rect){return rect.getBounds().contains(ll);}
+function ptInPoly(ll,poly){
+  var x=ll.lat,y=ll.lng,arr=poly.getLatLngs()[0];
+  var inside=false;
+  for(var i=0,j=arr.length-1;i<arr.length;j=i++){
+    var xi=arr[i].lat,yi=arr[i].lng,xj=arr[j].lat,yj=arr[j].lng;
+    if(((yi>y)!=(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi+1e-12)+xi)) inside=!inside;
+  }
+  return inside;
+}
+function pointInLayer(ll,layer){
+  return layer instanceof L.Rectangle ? ptInRect(ll,layer) : ptInPoly(ll,layer);
+}
+function recount(){
+  selection.clear();
+  var layers=drawnItems.getLayers();
+  var pending=layers.filter(function(l){return Object.values(tourDrawnLayers).indexOf(l)<0;});
+  if(!pending.length){updateStats();return;}
+  var last=pending[pending.length-1];
+  points.forEach(function(p){
+    var ll=L.latLng(p.lat,p.lon);
+    if(pointInLayer(ll,last)) selection.add(p.barcode);
+  });
+  updateStats();
+}
+
+// Activer les poignées d'édition en permanence sur une zone
+function enablePermanentEdit(layer){
+  if(layer && layer.editing && !layer.editing.enabled()){
+    layer.editing.enable();
+  }
+}
+
+// Quand une zone de TOURNÉE EXISTANTE est éditée (sommet déplacé),
+// recalculer en temps réel quels colis sont dans la nouvelle forme
+function recountTourZone(tourId){
+  var layer=tourDrawnLayers[tourId];
+  var t=tours.find(function(t){return t.id===tourId;});
+  if(!layer||!t) return;
+  var newBarcodes=[];
+  points.forEach(function(p){
+    var ll=L.latLng(p.lat,p.lon);
+    if(pointInLayer(ll,layer)) newBarcodes.push(p.barcode);
+  });
+  t.barcodes=newBarcodes;
+  // Garder l'ordre existant pour les colis toujours présents, ajouter les nouveaux à la fin
+  var oldOrder=t.order.filter(function(b){return newBarcodes.indexOf(b)>=0;});
+  var added=newBarcodes.filter(function(b){return oldOrder.indexOf(b)<0;});
+  t.order=oldOrder.concat(added);
+  drawAllPoints();
+  refreshTourList();
+  rebuildScanMap();
+}
+
+map.on(L.Draw.Event.CREATED,function(e){
+  drawnItems.addLayer(e.layer);
+  recount();
+  if(e.layer.editing){
+    e.layer.on('edit',recount);
+  }
+});
+map.on(L.Draw.Event.EDITED,recount);
+map.on(L.Draw.Event.DELETED,recount);
+
+
+// ══════════════════════════════════════════════════════
+//  OPTIMISATION
+// ══════════════════════════════════════════════════════
+function nnOrder(pts,startLat,startLon){
+  var visited=new Array(pts.length).fill(false);
+  var result=[];
+  var curLat=startLat,curLon=startLon;
+  while(result.length<pts.length){
+    var bestIdx=-1,bestD=Infinity;
+    for(var i=0;i<pts.length;i++){
+      if(visited[i]) continue;
+      var d=Math.hypot(curLat-pts[i].lat,curLon-pts[i].lon);
+      if(d<bestD){bestD=d;bestIdx=i;}
+    }
+    if(bestIdx<0) break;
+    visited[bestIdx]=true; result.push(bestIdx);
+    curLat=pts[bestIdx].lat; curLon=pts[bestIdx].lon;
+  }
+  return result;
+}
+
+// Nearest-neighbor synchrone (création immédiate de tournée)
+function optimizeOrder(barcodes,tourDepot,returnToDepot){
+  var pts=barcodes.map(function(b){return points.find(function(p){return p.barcode===b;});}).filter(Boolean);
+  if(!pts.length) return barcodes.slice();
+  if(pts.length===1) return [pts[0].barcode];
+  var start=tourDepot||depot||null;
+  var sLat,sLon;
+  var result=[];
+  if(start){sLat=start.lat;sLon=start.lon;}
+  else{
+    var best=0,bestScore=-Infinity;
+    pts.forEach(function(p,i){var s=p.lat-p.lon;if(s>bestScore){bestScore=s;best=i;}});
+    result.push(pts[best].barcode);
+    sLat=pts[best].lat;sLon=pts[best].lon;
+    pts=pts.filter(function(p,i){return i!==best;});
+  }
+  var idxs=nnOrder(pts,sLat,sLon);
+  idxs.forEach(function(i){result.push(pts[i].barcode);});
+  return result;
+}
+
+// OSRM asynchrone
+async function optimizeOrderOSRM(barcodes,tourDepot,returnToDepot){
+  var pts=barcodes.map(function(b){return points.find(function(p){return p.barcode===b;});}).filter(Boolean);
+  if(!pts.length) return barcodes.slice();
+  if(pts.length===1) return [pts[0].barcode];
+  var start=tourDepot||depot||null;
+  var osrmPts=pts.slice(0,100);
+  var restPts=pts.slice(100);
+  var orderedPts=[];
+  try{
+    var coordsList=(start?[[start.lon,start.lat]]:[]).concat(osrmPts.map(function(p){return[p.lon,p.lat];}));
+    var coordsStr=coordsList.map(function(c){return c[0]+','+c[1];}).join(';');
+    var params='roundtrip='+(returnToDepot&&start?'true':'false');
+    if(start) params+='&source=first';
+    if(returnToDepot&&start) params+='&destination=last';
+    var url='https://router.project-osrm.org/trip/v1/driving/'+coordsStr+'?'+params+'&overview=false';
+    var resp=await fetch(url,{signal:AbortSignal.timeout(8000)});
+    var data=await resp.json();
+    if(data.code==='Ok'&&data.waypoints){
+      var offset=start?1:0;
+      var wps=data.waypoints
+        .map(function(w,i){return{wi:w.waypoint_index,orig:i-offset};})
+        .filter(function(w){return w.orig>=0&&w.orig<osrmPts.length;})
+        .sort(function(a,b){return a.wi-b.wi;});
+      if(wps.length===osrmPts.length) orderedPts=wps.map(function(w){return osrmPts[w.orig];});
+    }
+  }catch(e){console.warn('OSRM indisponible:',e.message);}
+  if(!orderedPts.length){
+    var sLat2=start?start.lat:null,sLon2=start?start.lon:null;
+    if(!sLat2){var b2=0,bs=-Infinity;osrmPts.forEach(function(p,i){var s=p.lat-p.lon;if(s>bs){bs=s;b2=i;}});sLat2=osrmPts[b2].lat;sLon2=osrmPts[b2].lon;}
+    nnOrder(osrmPts,sLat2,sLon2).forEach(function(i){orderedPts.push(osrmPts[i]);});
+  }
+  if(restPts.length){
+    var last=orderedPts[orderedPts.length-1];
+    nnOrder(restPts,last.lat,last.lon).forEach(function(i){orderedPts.push(restPts[i]);});
+  }
+  return orderedPts.map(function(p){return p.barcode;});
+}
+
+// ══════════════════════════════════════════════════════
+//  TOURNÉES
+// ══════════════════════════════════════════════════════
+function rndColor(){return 'hsl('+Math.floor(Math.random()*360)+',80%,55%)';}
+
+document.getElementById('btnAssign').addEventListener('click',function(){
+  if(!selection.size){alert('Dessinez une zone pour sélectionner des points.');return;}
+  var name=(document.getElementById('tourName').value||'').trim();
+  if(!name){alert('Donnez un nom à la tournée.');return;}
+  var color=rndColor();
+  var barcodes=Array.from(selection);
+  var retour=document.getElementById('chkRetour').checked;
+  var order=optimizeOrder(barcodes,null,retour);
+  var id=++tourIdCounter;
+  var allLayers=drawnItems.getLayers();
+  var pending=allLayers.filter(function(l){return Object.values(tourDrawnLayers).indexOf(l)<0;});
+  var last=pending.length?pending[pending.length-1]:null;
+  if(last&&last.setStyle){
+    last.setStyle({color:color,fillColor:color,fillOpacity:.15,weight:2});
+    last.bindTooltip(name,{permanent:true,direction:'center',className:'tour-label-tt'});
+    tourDrawnLayers[id]=last;
+    last.off('edit');
+    (function(tourId,ly){
+      ly.on('click',function(e){
+        L.DomEvent.stopPropagation(e);
+        if(ly.editing){
+          if(ly.editing.enabled()) ly.editing.disable();
+          else ly.editing.enable();
+        }
+      });
+      ly.on('edit',function(){recountTourZone(tourId);});
+    })(id,last);
+  }
+  tours.push({id:id,name:name,color:color,barcodes:barcodes,order:order,depot:null});
+  document.getElementById('tourName').value='';
+  selection.clear();
+  drawAllPoints(); refreshTourList(); rebuildScanMap();
+  // Lancer OSRM en arrière-plan
+  var retour2=document.getElementById('chkRetour').checked;
+  optimizeOrderOSRM(barcodes,null,retour2).then(function(ord){
+    var t=tours.find(function(t){return t.id===id;});
+    if(t){t.order=ord;refreshTourList();rebuildScanMap();toast('✅ Tournée '+name+' optimisée (OSRM)',2000);}
+  });
+});
+
+document.getElementById('btnClearSel').addEventListener('click',function(){
+  var allLayers=drawnItems.getLayers();
+  var pending=allLayers.filter(function(l){return Object.values(tourDrawnLayers).indexOf(l)<0;});
+  pending.forEach(function(l){drawnItems.removeLayer(l);});
+  selection.clear(); updateStats();
+});
+
+document.getElementById('btnOptimize').addEventListener('click',async function(){
+  var btn=this;
+  btn.textContent='⏳ OSRM…'; btn.disabled=true;
+  var retour=document.getElementById('chkRetour').checked;
+  try{
+    await Promise.all(tours.map(async function(t){
+      t.order=await optimizeOrderOSRM(t.barcodes,t.depot||null,retour);
+    }));
+    refreshTourList(); rebuildScanMap();
+    toast('✅ Itinéraires optimisés via OSRM'+(depot?' (départ défini)':''),3000);
+  }catch(e){toast('⚠️ Erreur : '+e.message,4000);}
+  finally{btn.textContent='⚡ Optimiser tout'; btn.disabled=false;}
+});
+
+function deleteTour(tourId){
+  if(!confirm('Supprimer cette tournée ?')) return;
+  if(tourDrawnLayers[tourId]){drawnItems.removeLayer(tourDrawnLayers[tourId]);delete tourDrawnLayers[tourId];}
+  tours=tours.filter(function(t){return t.id!==tourId;});
+  drawAllPoints(); refreshTourList(); rebuildScanMap();
+}
+function removePointFromTour(tourId,barcode){
+  var t=tours.find(function(t){return t.id===tourId;}); if(!t) return;
+  t.barcodes=t.barcodes.filter(function(b){return b!==barcode;});
+  t.order=t.order.filter(function(b){return b!==barcode;});
+  drawAllPoints(); refreshTourList(); rebuildScanMap();
+}
+function openEditModal(tourId){
+  var t=tours.find(function(t){return t.id===tourId;}); if(!t) return;
+  editingTourId=tourId;
+  document.getElementById('editTourName').value=t.name;
+  document.getElementById('editModal').classList.remove('hidden');
+}
+function closeEditModal(){document.getElementById('editModal').classList.add('hidden');editingTourId=null;}
+function saveEditModal(){
+  var t=tours.find(function(t){return t.id===editingTourId;});
+  var name=(document.getElementById('editTourName').value||'').trim();
+  if(t&&name){
+    t.name=name;
+    var layer=tourDrawnLayers[t.id];
+    if(layer&&layer.setTooltipContent) layer.setTooltipContent(name);
+    refreshTourList(); rebuildScanMap();
+  }
+  closeEditModal();
+}
+
+// Drag & drop reorder
+var dragSrc=null;
+function onDragStart(e,tourId,idx){dragSrc={tourId:tourId,orderIdx:idx};e.currentTarget.classList.add('dragging');e.dataTransfer.effectAllowed='move';}
+function onDragEnd(e){e.currentTarget.classList.remove('dragging');}
+function onDragOver(e,el,idx){
+  e.preventDefault();
+  document.querySelectorAll('.point-item').forEach(function(i){i.classList.remove('drag-over-top','drag-over-bottom');});
+  if(!dragSrc) return;
+  idx>dragSrc.orderIdx?el.classList.add('drag-over-bottom'):el.classList.add('drag-over-top');
+}
+function onDrop(e,tourId,toIdx){
+  e.preventDefault();
+  document.querySelectorAll('.point-item').forEach(function(i){i.classList.remove('drag-over-top','drag-over-bottom');});
+  if(!dragSrc||dragSrc.tourId!==tourId) return;
+  var t=tours.find(function(t){return t.id===tourId;}); if(!t) return;
+  var item=t.order.splice(dragSrc.orderIdx,1)[0];
+  t.order.splice(toIdx>dragSrc.orderIdx?toIdx-1:toIdx,0,item);
+  dragSrc=null; refreshTourList(); rebuildScanMap();
+}
+function toggleTourBody(id){var el=document.getElementById('tour-body-'+id);if(el) el.classList.toggle('hidden');}
+
+function reoptimizeTour(id){
+  var t=tours.find(function(t){return t.id===id;}); if(!t) return;
+  var retour=document.getElementById('chkRetour').checked;
+  toast('⏳ Optimisation OSRM…',10000);
+  optimizeOrderOSRM(t.barcodes,t.depot||null,retour).then(function(ord){
+    t.order=ord; refreshTourList(); rebuildScanMap();
+    toast('✅ Tournée '+t.name+' optimisée !',2500);
+  });
+}
+
+function refreshTourList(){
+  var el=document.getElementById('tourList');
+  if(!tours.length){el.innerHTML='<div class="empty-state">Aucune tournée créée.</div>';return;}
+  el.innerHTML=tours.map(function(t){
+    var order=t.order.length?t.order:t.barcodes;
+    var items=order.map(function(bc,idx){
+      var safe=bc.replace(/'/g,"\\'");
+      return '<div class="point-item" draggable="true"'+
+        ' ondragstart="onDragStart(event,'+t.id+','+idx+')"'+
+        ' ondragend="onDragEnd(event)"'+
+        ' ondragover="onDragOver(event,this,'+idx+')"'+
+        ' ondrop="onDrop(event,'+t.id+','+idx+')">'
+        +'<span class="pos">'+(idx+1)+'</span>'
+        +'<span class="bc">'+bc+'</span>'
+        +'<span class="rm" onclick="removePointFromTour('+t.id+',\''+safe+'\')">✕</span>'
+        +'</div>';
+    }).join('');
+    var depotStyle=t.depot?'border-color:var(--accent2);color:var(--accent2)':'';
+    return '<div class="tour-card">'
+      +'<div class="tour-card-header" onclick="toggleTourBody('+t.id+')">'
+      +'<div class="tour-dot" style="background:'+t.color+'"></div>'
+      +'<div class="tour-title" title="'+t.name+'">'+t.name+'</div>'
+      +'<div class="tour-meta">'+t.barcodes.length+'pts</div>'
+      +'<div class="tour-actions" onclick="event.stopPropagation()">'
+      +'<button class="btn sm" title="Carte" onclick="openTourMap('+t.id+')">🗺️</button>'
+      +'<button class="btn sm" title="Départ" onclick="openDepotTourModal('+t.id+')" style="'+depotStyle+'">🏠</button>'
+      +'<button class="btn sm" title="QR" onclick="showQR('+t.id+')">📱</button>'
+      +'<button class="btn sm" title="CSV" onclick="exportTourCSV('+t.id+')">⬇️</button>'
+      +'<button class="btn sm" title="Modifier" onclick="openEditModal('+t.id+')">✏️</button>'
+      +'<button class="btn sm danger" title="Supprimer" onclick="deleteTour('+t.id+')">🗑️</button>'
+      +'</div></div>'
+      +'<div class="tour-body hidden" id="tour-body-'+t.id+'">'
+      +'<div style="font-size:11px;color:var(--muted);margin:8px 0 4px">Glissez pour réordonner :</div>'
+      +'<div class="point-list">'+items+'</div>'
+      +'<button class="btn sm" style="margin-top:8px" onclick="reoptimizeTour('+t.id+')">⚡ Ré-optimiser (OSRM)</button>'
+      +'</div></div>';
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════
+//  CARTE TOURNÉE (nouvel onglet)
+// ══════════════════════════════════════════════════════
+function openTourMap(tourId){
+  var t=tours.find(function(t){return t.id===tourId;}); if(!t) return;
+  var order=t.order.length?t.order:t.barcodes;
+  var pointMap={};
+  points.forEach(function(p){pointMap[p.barcode]=p;});
+  var pts=order.map(function(bc,i){var p=pointMap[bc];return p?Object.assign({},p,{pos:i+1}):null;}).filter(Boolean);
+  if(!pts.length){alert('Aucun point GPS disponible.');return;}
+  var startPt=t.depot||depot||null;
+  var retour=document.getElementById('chkRetour').checked;
+  var color=t.color;
+  var tourName=t.name;
+  var tourId2=t.id;
+
+  var w=window.open('','_blank');
+  if(!w) return;
+  var d=w.document;
+  d.open();
+  d.write('<!DOCTYPE html><html><head>');
+  d.write('<meta charset="utf-8"><title>Tournee</title>');
+  d.write('<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">');
+  d.write('<style>');
+  d.write('*{box-sizing:border-box;margin:0;padding:0}');
+  d.write('body{height:100vh;display:flex;flex-direction:column;font-family:sans-serif;background:#0d1117;color:#e6edf3}');
+  d.write('#topbar{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#161b22;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0}');
+  d.write('#topbar h1{font-size:15px;font-weight:700;flex:1}');
+  d.write('#dist{font-size:13px;color:#8b949e;white-space:nowrap}');
+  d.write('.save-btn{padding:7px 14px;background:#f0b429;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;color:#0d1117}');
+  d.write('#main{display:flex;flex:1;min-height:0}');
+  d.write('#map{flex:1}');
+  d.write('#sidebar{width:300px;background:#161b22;border-left:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;overflow:hidden}');
+  d.write('#sidebar-header{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.08);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8b949e}');
+  d.write('#colis-list{flex:1;overflow-y:auto}');
+  d.write('.colis-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.05);cursor:grab}');
+  d.write('.colis-row:hover{background:rgba(255,255,255,.04)}');
+  d.write('.colis-row.dragging{opacity:.4}');
+  d.write('.colis-row.drag-over{border-top:2px solid #f0b429}');
+  d.write('.colis-num{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#000;flex-shrink:0}');
+  d.write('.colis-info{flex:1;min-width:0}');
+  d.write('.colis-bc{font-size:12px;font-weight:700;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}');
+  d.write('.colis-addr{font-size:11px;color:#8b949e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}');
+  d.write('.mv-btns{display:flex;flex-direction:column;gap:2px;flex-shrink:0}');
+  d.write('.mv-btn{width:22px;height:22px;border-radius:4px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#e6edf3;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer}');
+  d.write('.mv-btn:hover{background:rgba(240,180,41,.2);border-color:#f0b429;color:#f0b429}');
+  d.write('.colis-row.selected{background:rgba(0,207,255,.12);border-left:3px solid #00cfff}');
+  d.write('.colis-check{width:16px;height:16px;cursor:pointer;accent-color:#00cfff;flex-shrink:0}');
+  d.write('#multi-toolbar{display:none;padding:7px 10px;background:#1a2535;border-bottom:1px solid rgba(255,255,255,.1);gap:6px;flex-wrap:wrap;align-items:center}');
+  d.write('#multi-toolbar.visible{display:flex}');
+  d.write('.tb-btn{padding:4px 9px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:#e6edf3;font-size:12px;font-weight:700;cursor:pointer}');
+  d.write('.tb-btn:hover{background:rgba(0,207,255,.2);border-color:#00cfff;color:#00cfff}');
+  d.write('.tb-btn.danger{border-color:rgba(255,80,80,.4);color:#ff5050}');
+  d.write('#sel-count{font-size:12px;color:#00cfff;font-weight:700;flex:1}');
+  d.write('#pos-input{width:50px;padding:3px 5px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:#0d1117;color:#e6edf3;font-size:13px;text-align:center}');
+  d.write('#loading{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;padding:8px 16px;border-radius:20px;font-size:13px;z-index:999;transition:opacity .4s}');
+  d.write('@keyframes flow{to{stroke-dashoffset:-20px}}');
+  d.write('.flow-line{stroke-dasharray:12,8;animation:flow .6s linear infinite}');
+  d.write('@media(max-width:600px){#sidebar{width:100%;height:40vh;border-left:none;border-top:1px solid rgba(255,255,255,.08)}#main{flex-direction:column}}');
+  d.write('</style></head><body>');
+  d.write('<div id="topbar">');
+  d.write('<h1>Tournee ' + tourName + ' — ' + pts.length + ' arrets</h1>');
+  d.write('<span id="dist">—</span>');
+  d.write('<button class="save-btn" id="saveBtn">Sauvegarder ordre</button>');
+  d.write('</div>');
+  d.write('<div id="main"><div id="map"></div>');
+  d.write('<div id="sidebar">');
+  d.write('<div id="sidebar-header">Ordre — glissez pour modifier</div>');
+  d.write('<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#161b22;border-bottom:1px solid rgba(255,255,255,.08)">');
+  d.write('<input type="checkbox" id="chk-all" class="colis-check" title="Tout selectionner">');
+  d.write('<span style="font-size:11px;color:#8b949e;flex:1">Selectionner tout</span>');
+  d.write('</div>');
+  d.write('<div id="multi-toolbar">');
+  d.write('<span id="sel-count">0</span>');
+  d.write('<input type="number" id="pos-input" min="1" placeholder="pos">');
+  d.write('<button class="tb-btn" id="btn-move-to">Deplacer</button>');
+  d.write('<button class="tb-btn" id="btn-move-up">↑ Monter</button>');
+  d.write('<button class="tb-btn" id="btn-move-dn">↓ Descendre</button>');
+  d.write('<button class="tb-btn danger" id="btn-desel">✕</button>');
+  d.write('</div>');
+  d.write('<div id="colis-list"></div>');
+  d.write('</div></div>');
+  d.write('<div id="loading">Calcul itineraire routier...</div>');
+
+  // Construire le JS via tableau de lignes (plus lisible, sans apostrophes)
+  var jsLines = [];
+  jsLines.push('var currentPts=' + JSON.stringify(pts) + ';');
+  jsLines.push('var startPt=' + JSON.stringify(startPt) + ';');
+  jsLines.push('var retour=' + JSON.stringify(retour) + ';');
+  jsLines.push('var color=' + JSON.stringify(color) + ';');
+  jsLines.push('var routeLayer=null;');
+  jsLines.push('var markersList=[];');
+  jsLines.push('var debounceTimer=null;');
+  jsLines.push('var dragIdx=null;');
+  jsLines.push('var tourId=' + JSON.stringify(tourId2) + ';');
+  jsLines.push('var map=L.map("map");');
+  jsLines.push('L.tileLayer("https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png",{attribution:"OpenStreetMap",subdomains:"abc",maxZoom:20}).addTo(map);');
+
+  // Marqueur dépôt
+  jsLines.push('if(startPt){');
+  jsLines.push('  var depIcon=L.divIcon({className:"",html:"<div style=\\"font-size:24px\\">&#127968;</div>",iconSize:[28,28],iconAnchor:[14,24]});');
+  jsLines.push('  L.marker([startPt.lat,startPt.lon],{icon:depIcon}).bindTooltip("Depart",{permanent:true,direction:"top"}).addTo(map);');
+  jsLines.push('}');
+
+  // drawMarkers
+  jsLines.push('function makeNumIcon(n){');
+  jsLines.push('  return L.divIcon({className:"",html:"<div style=\\"background:"+color+";color:#000;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;border:2px solid #fff;\\">"+n+"</div>",iconSize:[26,26],iconAnchor:[13,13]});');
+  jsLines.push('}');
+
+  jsLines.push('function drawMarkers(){');
+  jsLines.push('  markersList.forEach(function(m){m.remove();});');
+  jsLines.push('  markersList=[];');
+  jsLines.push('  currentPts.forEach(function(p,i){');
+  jsLines.push('    var m=L.marker([p.lat,p.lon],{icon:makeNumIcon(i+1)})');
+  jsLines.push('      .bindTooltip("<b>"+(i+1)+"</b> — "+p.barcode+(p.adresse?"<br>"+p.adresse:"")+(p.ville?"<br>"+p.cp+" "+p.ville:""))');
+  jsLines.push('      .addTo(map);');
+  jsLines.push('    markersList.push(m);');
+  jsLines.push('  });');
+  jsLines.push('  if(!retour&&currentPts.length){');
+  jsLines.push('    var last=currentPts[currentPts.length-1];');
+  jsLines.push('    var finIcon=L.divIcon({className:"",html:"<div style=\\"font-size:20px\\">&#127937;</div>",iconSize:[26,26],iconAnchor:[13,26]});');
+  jsLines.push('    var mf=L.marker([last.lat,last.lon],{icon:finIcon}).bindTooltip("Arrivee",{permanent:true,direction:"top"}).addTo(map);');
+  jsLines.push('    markersList.push(mf);');
+  jsLines.push('  }');
+  jsLines.push('}');
+
+  // loadRoute OSRM
+  jsLines.push('function loadRoute(){');
+  jsLines.push('  showLoading();');
+  jsLines.push('  var coords=(startPt?[[startPt.lon,startPt.lat]]:[]).concat(currentPts.map(function(p){return[p.lon,p.lat];})).concat(retour&&startPt?[[startPt.lon,startPt.lat]]:[]);');
+  jsLines.push('  if(coords.length<2){hideLoading();return;}');
+  jsLines.push('  var segs=[]; for(var i=0;i<coords.length-1;i+=24) segs.push(coords.slice(i,Math.min(i+25,coords.length)));');
+  jsLines.push('  var results=[]; var done=0; var totalKm=0;');
+  jsLines.push('  segs.forEach(function(seg,si){');
+  jsLines.push('    var url="https://router.project-osrm.org/route/v1/driving/"+seg.map(function(c){return c[0]+","+c[1];}).join(";")+"?overview=full&geometries=geojson";');
+  jsLines.push('    fetch(url,{signal:AbortSignal.timeout(10000)}).then(function(r){return r.json();})');
+  jsLines.push('      .then(function(data){');
+  jsLines.push('        if(data.code==="Ok"&&data.routes&&data.routes[0]){results[si]=data.routes[0].geometry.coordinates.map(function(c){return[c[1],c[0]];});totalKm+=data.routes[0].distance/1000;}');
+  jsLines.push('        done++; if(done===segs.length) applyRoute(results,totalKm);');
+  jsLines.push('      }).catch(function(){done++; if(done===segs.length) applyRoute(results,totalKm);});');
+  jsLines.push('  });');
+  jsLines.push('}');
+
+  jsLines.push('function applyRoute(results,totalKm){');
+  jsLines.push('  var flat=[]; results.forEach(function(s){if(s) flat=flat.concat(s);});');
+  jsLines.push('  if(routeLayer){routeLayer.remove();}');
+  jsLines.push('  if(flat.length>1){');
+  jsLines.push('    var shadow=L.polyline(flat,{color:"#000",weight:8,opacity:.35}).addTo(map);');
+  jsLines.push('    routeLayer=L.layerGroup([shadow,L.polyline(flat,{color:"#00cfff",weight:4.5,opacity:.95})]).addTo(map);');
+  jsLines.push('    document.getElementById("dist").textContent=totalKm.toFixed(1)+" km";');
+  jsLines.push('    setTimeout(function(){document.querySelectorAll(".leaflet-pane.leaflet-overlay-pane path").forEach(function(path){if(path.getAttribute("stroke")==="#00cfff"){path.classList.add("flow-line");}});},200);');
+  jsLines.push('  }');
+  jsLines.push('  else{var fb=(startPt?[[startPt.lat,startPt.lon]]:[]).concat(currentPts.map(function(p){return[p.lat,p.lon];}));routeLayer=L.polyline(fb,{color:color,weight:2.5,opacity:.5,dashArray:"6,6"}).addTo(map);}');
+  jsLines.push('  hideLoading();');
+  jsLines.push('}');
+
+  jsLines.push('function showLoading(){var el=document.getElementById("loading");if(el) el.style.opacity="1";}');
+  jsLines.push('function hideLoading(){var el=document.getElementById("loading");if(el) el.style.opacity="0";}');
+
+  jsLines.push('function refreshAll(){');
+  jsLines.push('  drawMarkers();');
+  jsLines.push('  clearTimeout(debounceTimer);');
+  jsLines.push('  debounceTimer=setTimeout(loadRoute,600);');
+  jsLines.push('}');
+
+  jsLines.push('var selectedSet=new Set();');
+
+  jsLines.push('function renderList(){');
+  jsLines.push('  var el=document.getElementById("colis-list");');
+  jsLines.push('  var html="";');
+  jsLines.push('  currentPts.forEach(function(p,i){');
+  jsLines.push('    var sel=selectedSet.has(i);');
+  jsLines.push('    var rowCls="colis-row"+(sel?" selected":"");');
+  jsLines.push('    var chk=sel?"checked":"";');
+  jsLines.push('    var bg=color;');
+  jsLines.push('    var addr=((p.adresse||"")+" "+(p.cp||"")+" "+(p.ville||"")).trim();');
+  jsLines.push('    html+="<div class=\\""+rowCls+"\\" draggable=\\"true\\" data-idx=\\""+i+"\\">"+"<input type=\\"checkbox\\" class=\\"colis-check\\" data-idx=\\""+i+"\\" "+chk+">"+"<div class=\\"colis-num\\" style=\\"background:"+bg+"\\">"+( i+1)+"</div>"+"<div class=\\"colis-info\\"><div class=\\"colis-bc\\">"+p.barcode+"</div>"+"<div class=\\"colis-addr\\">"+addr+"</div></div>"+"<div class=\\"mv-btns\\"><div class=\\"mv-btn\\" data-mv=\\"up\\" data-idx=\\""+i+"\\">↑</div><div class=\\"mv-btn\\" data-mv=\\"dn\\" data-idx=\\""+i+"\\">↓</div></div></div>";');
+  jsLines.push('  });');
+  jsLines.push('  el.innerHTML=html;');
+  jsLines.push('  updateToolbar();');
+  jsLines.push('  el.querySelectorAll(".colis-check").forEach(function(chk){');
+  jsLines.push('    chk.addEventListener("change",function(e){e.stopPropagation();var i=parseInt(this.dataset.idx);if(this.checked)selectedSet.add(i);else selectedSet.delete(i);renderList();});');
+  jsLines.push('  });');
+  jsLines.push('  el.querySelectorAll(".colis-row").forEach(function(row){');
+  jsLines.push('    row.addEventListener("dragstart",function(){dragIdx=parseInt(this.dataset.idx);this.classList.add("dragging");});');
+  jsLines.push('    row.addEventListener("dragend",function(){this.classList.remove("dragging");el.querySelectorAll(".colis-row").forEach(function(r){r.classList.remove("drag-over");});});');
+  jsLines.push('    row.addEventListener("dragover",function(e){e.preventDefault();el.querySelectorAll(".colis-row").forEach(function(r){r.classList.remove("drag-over");});this.classList.add("drag-over");});');
+  jsLines.push('    row.addEventListener("drop",function(e){e.preventDefault();var toIdx=parseInt(this.dataset.idx);if(dragIdx===null||dragIdx===toIdx)return;if(selectedSet.size>1&&selectedSet.has(dragIdx)){var si=[...selectedSet].sort(function(a,b){return a-b;});var sp=si.map(function(i){return currentPts[i];});var rem=currentPts.filter(function(_,i){return !selectedSet.has(i);});var ins=Math.max(0,Math.min(toIdx-si.filter(function(i){return i<toIdx;}).length,rem.length));rem.splice.apply(rem,[ins,0].concat(sp));currentPts=rem;selectedSet.clear();}else{var it=currentPts.splice(dragIdx,1)[0];currentPts.splice(toIdx>dragIdx?toIdx-1:toIdx,0,it);}dragIdx=null;renderList();refreshAll();});');
+  jsLines.push('  });');
+  jsLines.push('  el.querySelectorAll(".mv-btn").forEach(function(btn){');
+  jsLines.push('    btn.addEventListener("click",function(e){e.stopPropagation();var i=parseInt(this.dataset.idx);var mv=this.dataset.mv;if(mv==="up"&&i>0){var t=currentPts[i-1];currentPts[i-1]=currentPts[i];currentPts[i]=t;}else if(mv==="dn"&&i<currentPts.length-1){var t=currentPts[i+1];currentPts[i+1]=currentPts[i];currentPts[i]=t;}renderList();refreshAll();});');
+  jsLines.push('  });');
+  jsLines.push('}');
+  jsLines.push('function updateToolbar(){var tb=document.getElementById("multi-toolbar");var sc=document.getElementById("sel-count");if(selectedSet.size>0){tb.classList.add("visible");if(sc)sc.textContent=selectedSet.size+" selectionne(s)";}else{tb.classList.remove("visible");}var ca=document.getElementById("chk-all");if(ca)ca.checked=(selectedSet.size===currentPts.length&&currentPts.length>0);}');
+  jsLines.push('document.getElementById("chk-all").addEventListener("change",function(){if(this.checked){currentPts.forEach(function(_,i){selectedSet.add(i);});}else{selectedSet.clear();}renderList();});');
+  jsLines.push('document.getElementById("btn-move-to").addEventListener("click",function(){var pos=parseInt(document.getElementById("pos-input").value);if(!pos||pos<1||pos>currentPts.length){alert("Position invalide (1-"+currentPts.length+")");return;}var si=[...selectedSet].sort(function(a,b){return a-b;});var sp=si.map(function(i){return currentPts[i];});var rem=currentPts.filter(function(_,i){return !selectedSet.has(i);});var ins=Math.max(0,Math.min(pos-1,rem.length));rem.splice.apply(rem,[ins,0].concat(sp));currentPts=rem;selectedSet.clear();renderList();refreshAll();});');
+  jsLines.push('document.getElementById("btn-move-up").addEventListener("click",function(){var si=[...selectedSet].sort(function(a,b){return a-b;});if(!si.length||si[0]===0)return;si.forEach(function(i){var t=currentPts[i-1];currentPts[i-1]=currentPts[i];currentPts[i]=t;});selectedSet=new Set(si.map(function(i){return i-1;}));renderList();refreshAll();});');
+  jsLines.push('document.getElementById("btn-move-dn").addEventListener("click",function(){var si=[...selectedSet].sort(function(a,b){return b-a;});if(!si.length||si[0]===currentPts.length-1)return;si.forEach(function(i){var t=currentPts[i+1];currentPts[i+1]=currentPts[i];currentPts[i]=t;});selectedSet=new Set(si.map(function(i){return i+1;}));renderList();refreshAll();});');
+  jsLines.push('document.getElementById("btn-desel").addEventListener("click",function(){selectedSet.clear();renderList();});');
+
+  // saveBtn
+  jsLines.push('document.getElementById("saveBtn").addEventListener("click",function(){');
+  jsLines.push('  var newOrder=currentPts.map(function(p){return p.barcode;});');
+  jsLines.push('  if(window.opener&&!window.opener.closed){window.opener.applyTourOrder(tourId,newOrder);this.textContent="Sauvegarde OK !";var btn=this;setTimeout(function(){btn.textContent="Sauvegarder ordre";},2000);}');
+  jsLines.push('  else{alert("Fenetre principale fermee.");}');
+  jsLines.push('});');
+
+  // Init
+  jsLines.push('var allBounds=(startPt?[[startPt.lat,startPt.lon]]:[]).concat(currentPts.map(function(p){return[p.lat,p.lon];}));');
+  jsLines.push('if(allBounds.length) map.fitBounds(L.latLngBounds(allBounds).pad(.1));');
+  jsLines.push('drawMarkers();');
+  jsLines.push('renderList();');
+  jsLines.push('loadRoute();');
+
+  var js = jsLines.join('\n');
+  var blob = new Blob([js], {type:'text/javascript'});
+  var blobUrl = URL.createObjectURL(blob);
+  var tag = '<sc'+'ript src="https://unpkg.com/leaflet/dist/leaflet.js" onload="var s=document.createElement(\'sc\'+\'ript\');s.src=\'' + blobUrl + '\';document.head.appendChild(s);"></sc'+'ript>';
+  d.write(tag);
+  d.write('</body></html>');
+  d.close();
+}
+
+// Reçoit l'ordre modifié depuis la fenêtre carte
+function applyTourOrder(tourId, newOrder){
+  var t=tours.find(function(t){return t.id===tourId;}); if(!t) return;
+  t.order=newOrder;
+  refreshTourList(); rebuildScanMap();
+  toast('✅ Ordre de la tournée '+t.name+' mis à jour !', 3000);
+}
+
+// ══════════════════════════════════════════════════════
+//  QR CODE
+// ══════════════════════════════════════════════════════
+function showQR(tourId){
+  var t=tours.find(function(t){return t.id===tourId;}); if(!t) return;
+  var order=t.order.length?t.order:t.barcodes;
+  var pointMap={};
+  points.forEach(function(p){pointMap[p.barcode]=p;});
+  var payload={name:t.name,color:t.color,colis:order.map(function(bc,i){var p=pointMap[bc]||{};return{bc:bc,pos:i+1,lat:p.lat||0,lon:p.lon||0};})};
+  var json=JSON.stringify(payload);
+  var bytes=new TextEncoder().encode(json).length;
+  var kb=(bytes/1024).toFixed(1);
+  document.getElementById('qrTitle').textContent='QR Code — Tournée '+t.name;
+  var canvas=document.getElementById('qrCanvas'); canvas.innerHTML='';
+  document.getElementById('qrModal').classList.remove('hidden');
+  if(bytes>2800){canvas.innerHTML='<p style="color:#f85149;max-width:300px">⚠️ Tournée trop volumineuse ('+kb+' Ko). Utilisez export JSON + mail.</p>';return;}
+  try{new QRCode(canvas,{text:json,width:256,height:256,correctLevel:QRCode.CorrectLevel.L});document.getElementById('qrSizeInfo').textContent='Taille : '+kb+' Ko — '+order.length+' colis';}
+  catch(e){canvas.innerHTML='<p style="color:#f85149">Erreur : '+e.message+'</p>';}
+}
+
+// ══════════════════════════════════════════════════════
+//  EXPORT JSON + CSV
+// ══════════════════════════════════════════════════════
+document.getElementById('btnExport').addEventListener('click',function(){
+  var result={};
+  var pm={};
+  points.forEach(function(p){pm[p.barcode]=p;});
+  tours.forEach(function(t){
+    var order=t.order.length?t.order:t.barcodes;
+    order.forEach(function(bc,idx){
+      var p=pm[bc]||{};
+      result[bc]={tournee:t.name,position:idx+1,total:order.length,lat:p.lat||0,lon:p.lon||0,adresse:p.adresse||'',ville:p.ville||'',cp:p.cp||''};
+    });
+  });
+  // Section _carte : sauvegarde zones et tournées
+  var carteTours=tours.map(function(t){
+    var zoneGeo=null;
+    var layer=tourDrawnLayers[t.id];
+    if(layer){ try{ zoneGeo=layer.toGeoJSON(); }catch(e){} }
+    return {id:t.id,name:t.name,color:t.color,barcodes:t.barcodes,order:t.order,depot:t.depot||null,zone:zoneGeo};
+  });
+  result['_carte']={version:1,tourIdCounter:tourIdCounter,tours:carteTours};
+  var blob=new Blob([JSON.stringify(result,null,2)],{type:'application/json'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='tournees_export.json';a.click();
+});
+
+function exportTourCSV(tourId){
+  var t=tours.find(function(t){return t.id===tourId;}); if(!t) return;
+  var order=t.order.length?t.order:t.barcodes;
+  var pm={};
+  points.forEach(function(p){pm[p.barcode]=p;});
+  var header=['Position','N Colis (A)','Tel (M)','Ville (R)','CP (G)','Adresse (T)'];
+  var rows=order.map(function(bc,idx){var p=pm[bc]||{};return[idx+1,bc,p.telephone||'',p.ville||'',p.cp||'',p.adresse||''];});
+  var csv=[header].concat(rows).map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(';');}).join('\n');
+  var blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='tournee_'+t.name+'_colis.csv';a.click();
+}
+
+// ══════════════════════════════════════════════════════
+//  DÉPÔT / POINT DE DÉPART
+// ══════════════════════════════════════════════════════
+// ═══════════════════ POPUP AJOUT TOURNÉE ═══════════════════
+var popupBarcode=null;
+var pendingUnassignBarcode=null;
+
+function unassignPending(){
+  if(!pendingUnassignBarcode) return;
+  unassignPoint(pendingUnassignBarcode);
+  pendingUnassignBarcode=null;
+}
+function showUnassignPopup(pt,latlng){
+  var tour=null;
+  tours.forEach(function(t){ if(t.barcodes.indexOf(pt.barcode)>=0) tour=t; });
+  if(!tour) return;
+  var popup=document.getElementById('add-tour-popup');
+  var list=document.getElementById('add-tour-list');
+  // Stocker le barcode dans une variable globale pour éviter les problèmes d'échappement
+  pendingUnassignBarcode=pt.barcode;
+  list.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Actuellement dans : <b style="color:'+tour.color+'">'+tour.name+'</b></div>'
+    +'<div class="add-tour-item" onclick="unassignPending()" style="color:var(--err);border:1px solid rgba(248,81,73,.3)">'
+    +'<span>✕</span> Retirer de la tournée'
+    +'</div>';
+  var mapRect=document.getElementById('map').getBoundingClientRect();
+  var pt2=map.latLngToContainerPoint(latlng);
+  var x=Math.min(pt2.x+mapRect.left+12,window.innerWidth-310);
+  var y=Math.min(pt2.y+mapRect.top+12,window.innerHeight-160);
+  popup.style.left=x+'px'; popup.style.top=y+'px';
+  popup.style.display='block';
+}
+
+function unassignPoint(barcode){
+  tours.forEach(function(t){
+    t.barcodes=t.barcodes.filter(function(b){return b!==barcode;});
+    t.order=t.order.filter(function(b){return b!==barcode;});
+  });
+  hideAddToTourPopup();
+  drawAllPoints(); refreshTourList(); rebuildScanMap();
+  toast('↩️ Colis retiré de la tournée');
+}
+
+function showAddToTourPopup(pt,latlng){
+  if(!tours.length){toast('Aucune tournée créée.');return;}
+  popupBarcode=pt.barcode;
+  var popup=document.getElementById('add-tour-popup');
+  var list=document.getElementById('add-tour-list');
+  list.innerHTML=tours.map(function(t){
+    return '<div class="add-tour-item" onclick="addToTour('+t.id+')">'
+      +'<div class="add-tour-dot" style="background:'+t.color+'"></div>'
+      +t.name+' ('+t.barcodes.length+' colis)'
+      +'</div>';
+  }).join('');
+  var mapRect=document.getElementById('map').getBoundingClientRect();
+  var pt2=map.latLngToContainerPoint(latlng);
+  var x=Math.min(pt2.x+mapRect.left+12,window.innerWidth-295);
+  var y=Math.min(pt2.y+mapRect.top+12,window.innerHeight-220);
+  popup.style.left=x+'px'; popup.style.top=y+'px';
+  popup.style.display='block';
+}
+function hideAddToTourPopup(){
+  document.getElementById('add-tour-popup').style.display='none';
+  popupBarcode=null;
+}
+function addToTour(tourId){
+  if(!popupBarcode) return;
+  var t=tours.find(function(t){return t.id===tourId;});
+  if(!t) return;
+  if(t.barcodes.indexOf(popupBarcode)<0){
+    t.barcodes.push(popupBarcode);
+    t.order.push(popupBarcode);
+  }
+  hideAddToTourPopup();
+  drawAllPoints();refreshTourList();rebuildScanMap();
+  toast('✅ Colis ajouté à '+t.name);
+}
+map.on('click',function(){
+  var popup=document.getElementById('add-tour-popup');
+  if(popup&&popup.style.display!=='none') hideAddToTourPopup();
+});
+
+var depotMarker=L.marker([0,0],{
+  icon:L.divIcon({className:'',html:'<div style="font-size:26px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.6))">🏠</div>',iconSize:[28,28],iconAnchor:[14,24]}),
+  draggable:true
+});
+depotMarker.on('dragend',function(e){var ll=e.target.getLatLng();depot={lat:ll.lat,lon:ll.lng};updateDepotUI();});
+
+function updateDepotUI(){
+  var has=!!depot;
+  document.getElementById('depotInfo').style.display=has?'block':'none';
+  document.getElementById('btnClearDepot').style.display=has?'':'none';
+  if(has){
+    document.getElementById('depotCoords').textContent=depot.lat.toFixed(5)+', '+depot.lon.toFixed(5);
+    document.getElementById('depotLat').value=depot.lat;
+    document.getElementById('depotLon').value=depot.lon;
+    depotMarker.setLatLng([depot.lat,depot.lon]);
+    if(!map.hasLayer(depotMarker)) depotMarker.addTo(map);
+  } else {if(map.hasLayer(depotMarker)) depotMarker.remove();}
+}
+document.getElementById('btnSetDepot').addEventListener('click',function(){
+  var lat=parseFloat(document.getElementById('depotLat').value);
+  var lon=parseFloat(document.getElementById('depotLon').value);
+  if(!isFinite(lat)||!isFinite(lon)){alert('Coordonnées invalides.');return;}
+  depot={lat:lat,lon:lon}; updateDepotUI(); map.setView([lat,lon],13);
+});
+document.getElementById('btnPickDepot').addEventListener('click',function(){
+  pickingDepot=true;
+  this.textContent='✅ Cliquez sur la carte…';
+  map.getContainer().style.cursor='crosshair';
+});
+document.getElementById('btnClearDepot').addEventListener('click',function(){depot=null;updateDepotUI();});
+map.on('click',function(e){
+  if(!pickingDepot) return;
+  depot={lat:e.latlng.lat,lon:e.latlng.lng}; updateDepotUI();
+  pickingDepot=false;
+  document.getElementById('btnPickDepot').textContent='🖱️ Carte';
+  map.getContainer().style.cursor='';
+});
+
+function openDepotTourModal(tourId){
+  var t=tours.find(function(t){return t.id===tourId;}); if(!t) return;
+  editingDepotTourId=tourId;
+  document.getElementById('depotTourTitle').textContent=t.name;
+  document.getElementById('depotTourLat').value=t.depot?t.depot.lat:'';
+  document.getElementById('depotTourLon').value=t.depot?t.depot.lon:'';
+  document.getElementById('depotTourModal').classList.remove('hidden');
+}
+function closeDepotTourModal(){document.getElementById('depotTourModal').classList.add('hidden');editingDepotTourId=null;}
+function saveDepotTourModal(){
+  var t=tours.find(function(t){return t.id===editingDepotTourId;}); if(!t) return;
+  var lat=parseFloat(document.getElementById('depotTourLat').value);
+  var lon=parseFloat(document.getElementById('depotTourLon').value);
+  t.depot=(isFinite(lat)&&isFinite(lon))?{lat:lat,lon:lon}:null;
+  closeDepotTourModal(); refreshTourList();
+}
+document.getElementById('btnDepotTourClear').addEventListener('click',function(){
+  var t=tours.find(function(t){return t.id===editingDepotTourId;}); if(t) t.depot=null;
+  closeDepotTourModal(); refreshTourList();
+});
+
+// ══════════════════════════════════════════════════════
+//  RESTAURATION CARTE
+function restoreCarte(data){
+  tours=[];
+  Object.keys(tourDrawnLayers).forEach(function(id){
+    drawnItems.removeLayer(tourDrawnLayers[id]);
+  });
+  for(var k in tourDrawnLayers) delete tourDrawnLayers[k];
+  tourIdCounter=data.tourIdCounter||0;
+  data.tours.forEach(function(td){
+    var layer=null;
+    if(td.zone){
+      try{
+        var layers=L.geoJSON(td.zone).getLayers();
+        if(layers.length){
+          layer=layers[0];
+          layer.setStyle({color:td.color,fillColor:td.color,fillOpacity:.15,weight:2});
+          layer.bindTooltip(td.name,{permanent:true,direction:'center',className:'tour-label-tt'});
+          drawnItems.addLayer(layer);
+          tourDrawnLayers[td.id]=layer;
+          (function(tid,ly){
+            ly.on('click',function(e){
+              L.DomEvent.stopPropagation(e);
+              if(ly.editing){
+                if(ly.editing.enabled()) ly.editing.disable();
+                else ly.editing.enable();
+              }
+            });
+            ly.on('edit',function(){recountTourZone(tid);});
+          })(td.id,layer);
+        }
+      }catch(e){}
+    }
+    tours.push({id:td.id,name:td.name,color:td.color,barcodes:td.barcodes||[],order:td.order||[],depot:td.depot||null});
+  });
+  drawAllPoints();
+  refreshTourList();
+  rebuildScanMap();
+  if(points.length){
+    map.fitBounds(L.latLngBounds(points.map(function(p){return[p.lat,p.lon];})).pad(.1));
+  } else if(drawnItems.getLayers().length){
+    map.fitBounds(drawnItems.getBounds().pad(.1));
+  }
+  toast('✅ Carte restaurée : '+tours.length+' tournée(s)');
+}
+
+//  SCANNER
+// ══════════════════════════════════════════════════════
+function normCode(s){
+  return (s||'')
+    .replace(/[\u200b\ufeff\xa0\r\n\t]/g,'') // caractères invisibles + retours chariot
+    .replace(/[^\x20-\x7E\u00C0-\u024F]/g,'') // garder seulement ASCII imprimable + accents
+    .trim()
+    .replace(/\s+/g,'')
+    .toUpperCase();
+}
+
+function rebuildScanMap(){
+  scanMap={};
+  tours.forEach(function(t){
+    var order=t.order.length?t.order:t.barcodes;
+    order.forEach(function(bc,idx){
+      scanMap[normCode(bc)]={tourName:t.name,position:idx+1,total:order.length};
+    });
+  });
+  var total=Object.keys(scanMap).length;
+  var ts=new Set(Object.values(scanMap).map(function(v){return v.tourName;}));
+  document.getElementById('sc-total').textContent=total;
+  document.getElementById('sc-tours').textContent=ts.size;
+  document.getElementById('sc-found').textContent=foundCount;
+  document.getElementById('sc-unknown').textContent=unknownCount;
+}
+
+async function loadScanJSON(file){
+  try{
+    var txt=await file.text();
+    var raw=JSON.parse(txt);
+    // Restaurer la carte si _carte est présent
+    if(raw['_carte']&&raw['_carte'].version===1){
+      restoreCarte(raw['_carte']);
+    }
+    scanMap={};
+    for(var k in raw){
+      if(k==='_carte') continue;
+      var v=raw[k];
+      var code=normCode(k);
+      if(typeof v==='object'&&v.tournee!==undefined){
+        scanMap[code]={tourName:String(v.tournee),position:v.position||0,total:v.total||0};
+      } else {
+        scanMap[code]={tourName:String(v),position:0,total:0};
+      }
+    }
+    document.getElementById('scanDropLabel').textContent='✅ '+Object.keys(scanMap).length+' codes chargés';
+    document.getElementById('scanInput').disabled=false;
+    document.getElementById('scanClear').disabled=false;
+    document.getElementById('scanMain').textContent='PRÊT';
+    document.getElementById('scanMain').className='display-main';
+    document.getElementById('scanSub').textContent='';
+    document.getElementById('scanDisplay').className='scanner-display';
+    document.getElementById('scanInput').focus();
+    var total=Object.keys(scanMap).length;
+    var ts=new Set(Object.values(scanMap).map(function(v){return v.tourName;}));
+    document.getElementById('sc-total').textContent=total;
+    document.getElementById('sc-tours').textContent=ts.size;
+    document.getElementById('sc-found').textContent=foundCount;
+    document.getElementById('sc-unknown').textContent=unknownCount;
+  }catch(err){alert('Fichier JSON invalide.');}
+}
+document.getElementById('scanFileInput').addEventListener('change',function(e){if(e.target.files[0]) loadScanJSON(e.target.files[0]);});
+var sdz=document.getElementById('scanDropZone');
+sdz.addEventListener('dragover',function(e){e.preventDefault();sdz.classList.add('drag-over');});
+sdz.addEventListener('dragleave',function(){sdz.classList.remove('drag-over');});
+sdz.addEventListener('drop',function(e){e.preventDefault();sdz.classList.remove('drag-over');if(e.dataTransfer.files[0]) loadScanJSON(e.dataTransfer.files[0]);});
+
+function doScan(raw){
+  var code=normCode(raw);
+  var info=scanMap[code];
+  var mainEl=document.getElementById('scanMain');
+  var subEl=document.getElementById('scanSub');
+  var dispEl=document.getElementById('scanDisplay');
+  if(info===undefined){
+    unknownCount++;
+    mainEl.textContent='INCONNU';mainEl.className='display-main err';
+    subEl.textContent=code||'—';subEl.className='display-sub err';
+    dispEl.className='scanner-display state-err';
+    addHistory(code,null,null);
+  } else {
+    foundCount++;
+    mainEl.textContent='TOURNÉE '+info.tourName;mainEl.className='display-main ok';
+    var posText=info.position?'Position '+info.position+(info.total?' / '+info.total:''):'';
+    subEl.textContent=posText;subEl.className='display-sub ok';
+    dispEl.className='scanner-display state-ok';
+    addHistory(code,info.tourName,info.position&&info.total?info.position+'/'+info.total:'—');
+  }
+  document.getElementById('sc-found').textContent=foundCount;
+  document.getElementById('sc-unknown').textContent=unknownCount;
+  var badge=document.getElementById('history-badge');
+  badge.textContent=historyRows.length;
+  badge.classList.toggle('hidden',historyRows.length===0);
+}
+function addHistory(code,tour,pos){
+  historyRows.unshift({code:code,tour:tour,pos:pos});
+  if(historyRows.length>200) historyRows.pop();
+  renderHistory();
+}
+function renderHistory(){
+  document.getElementById('historyBody').innerHTML=historyRows.map(function(r,i){
+    return '<tr><td class="ok" style="color:var(--muted)">'+(historyRows.length-i)+'</td>'
+      +'<td>'+r.code+'</td>'
+      +'<td class="'+(r.tour!==null?'ok':'err')+'">'+(r.tour!==null?r.tour:'INCONNU')+'</td>'
+      +'<td style="color:var(--muted)">'+(r.pos||'—')+'</td></tr>';
+  }).join('');
+}
+document.getElementById('scanInput').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){doScan(e.target.value);e.target.select();}
+});
+document.getElementById('scanClear').addEventListener('click',function(){
+  document.getElementById('scanInput').value='';
+  document.getElementById('scanInput').focus();
+  document.getElementById('scanMain').textContent='PRÊT';
+  document.getElementById('scanMain').className='display-main';
+  document.getElementById('scanSub').textContent='';
+  document.getElementById('scanDisplay').className='scanner-display';
+});
+document.getElementById('scanResetHist').addEventListener('click',function(){
+  if(!confirm("Vider l'historique ?")) return;
+  historyRows=[];foundCount=0;unknownCount=0;
+  renderHistory();rebuildScanMap();
+  document.getElementById('history-badge').classList.add('hidden');
+});
+
+// ══ DÉCOUPAGE AUTOMATIQUE ══
+var autoClusterResult=null;
+function openAutoDecoup(){
+  if(!points.length){toast('Chargez un fichier Excel d\'abord.');return;}
+  document.getElementById('autoNbColis').textContent=points.length;
+  document.getElementById('autoPreview').style.display='none';
+  document.getElementById('btnApplyAuto').style.display='none';
+  document.getElementById('autoNbLivreurs').value=Math.min(15,Math.max(1,Math.round(points.length/80)));
+  document.getElementById('autoDecoupModal').classList.add('open');
+}
+function closeAutoDecoup(){document.getElementById('autoDecoupModal').classList.remove('open');autoClusterResult=null;}
+function dist2(a,b){var dl=a.lat-b.lat,dn=a.lon-b.lon;return dl*dl+dn*dn;}
+function kMeans(pts,k,maxIter){
+  if(k<=0||!pts.length)return[];
+  // Init K-Means++
+  var centroids=[];
+  centroids.push(pts[Math.floor(Math.random()*pts.length)]);
+  for(var ci=1;ci<k;ci++){
+    var dists=pts.map(function(p){var m=Infinity;centroids.forEach(function(c){var d=dist2(p,c);if(d<m)m=d;});return m;});
+    var sum=dists.reduce(function(a,b){return a+b;},0),r=Math.random()*sum,acc=0;
+    for(var pi=0;pi<pts.length;pi++){acc+=dists[pi];if(acc>=r){centroids.push(pts[pi]);break;}}
+  }
+  var asgn=new Array(pts.length).fill(0);
+  for(var iter=0;iter<(maxIter||100);iter++){
+    var changed=false;
+    for(var i=0;i<pts.length;i++){
+      var best=0,bestD=Infinity;
+      for(var j=0;j<k;j++){var d=dist2(pts[i],centroids[j]);if(d<bestD){bestD=d;best=j;}}
+      if(asgn[i]!==best){asgn[i]=best;changed=true;}
+    }
+    if(!changed)break;
+    for(var j=0;j<k;j++){
+      var m=pts.filter(function(_,i){return asgn[i]===j;});
+      if(m.length)centroids[j]={lat:m.reduce(function(s,p){return s+p.lat;},0)/m.length,lon:m.reduce(function(s,p){return s+p.lon;},0)/m.length};
+    }
+  }
+
+  // ── Rééquilibrage par transfert de bordure ──
+  // Cible : chaque cluster doit avoir pts.length/k points (+/- 20%)
+  var target = pts.length / k;
+  var maxPass = 50;
+  for(var pass=0; pass<maxPass; pass++){
+    var sizes = [];
+    for(var j=0;j<k;j++) sizes.push(pts.filter(function(_,i){return asgn[i]===j;}).length);
+    // Trouver le cluster le plus gros et le plus petit
+    var maxJ=0,minJ=0;
+    for(var j=1;j<k;j++){if(sizes[j]>sizes[maxJ])maxJ=j;if(sizes[j]<sizes[minJ])minJ=j;}
+    // Arrêter si l'écart est acceptable (moins de 25% d'écart par rapport à la cible)
+    if(sizes[maxJ] <= target*1.25 && sizes[minJ] >= target*0.75) break;
+    if(sizes[maxJ] <= sizes[minJ]+1) break;
+    // Trouver le point du cluster maxJ le plus proche du centroïde de minJ
+    var minCentLat=0,minCentLon=0,cnt=0;
+    pts.forEach(function(p,i){if(asgn[i]===minJ){minCentLat+=p.lat;minCentLon+=p.lon;cnt++;}});
+    if(!cnt) break;
+    minCentLat/=cnt; minCentLon/=cnt;
+    var minCent={lat:minCentLat,lon:minCentLon};
+    var bestI=-1,bestD2=Infinity;
+    pts.forEach(function(p,i){
+      if(asgn[i]===maxJ){
+        var d=dist2(p,minCent);
+        if(d<bestD2){bestD2=d;bestI=i;}
+      }
+    });
+    if(bestI>=0) asgn[bestI]=minJ;
+    else break;
+  }
+  return asgn;
+}
+function clusterRadius(mbrs){
+  if(!mbrs.length)return 0;
+  var clat=mbrs.reduce(function(s,p){return s+p.lat;},0)/mbrs.length;
+  var clon=mbrs.reduce(function(s,p){return s+p.lon;},0)/mbrs.length;
+  var R=6371,maxD=0;
+  mbrs.forEach(function(p){
+    var dl=(p.lat-clat)*Math.PI/180,dn=(p.lon-clon)*Math.PI/180;
+    var a=Math.sin(dl/2)*Math.sin(dl/2)+Math.cos(clat*Math.PI/180)*Math.cos(p.lat*Math.PI/180)*Math.sin(dn/2)*Math.sin(dn/2);
+    var d=R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    if(d>maxD)maxD=d;
+  });
+  return maxD;
+}
+var AUTO_COLORS=['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#84cc16','#ec4899','#14b8a6','#6366f1','#d946ef','#0ea5e9','#a3e635','#fb923c'];
+
+function getMedian(arr){
+  var s=arr.slice().sort(function(a,b){return a-b;});
+  return s[Math.floor(s.length/2)];
+}
+
+function haversineKm(a,b){
+  var R=6371,dlat=(b.lat-a.lat)*Math.PI/180,dlon=(b.lon-a.lon)*Math.PI/180;
+  var x=Math.sin(dlat/2)*Math.sin(dlat/2)+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dlon/2)*Math.sin(dlon/2);
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+function centroid(pts){
+  return{lat:pts.reduce(function(s,p){return s+p.lat;},0)/pts.length,
+         lon:pts.reduce(function(s,p){return s+p.lon;},0)/pts.length};
+}
+
+function computeNearestDists(pts){
+  var grid={};
+  pts.forEach(function(p,i){
+    var gk=Math.floor(p.lat*20)+','+Math.floor(p.lon*20);
+    if(!grid[gk])grid[gk]=[];grid[gk].push(i);
+  });
+  return pts.map(function(p,i){
+    var gr=Math.floor(p.lat*20),gc=Math.floor(p.lon*20),minD=Infinity;
+    for(var dr=-1;dr<=1;dr++)for(var dc=-1;dc<=1;dc++){
+      (grid[(gr+dr)+','+(gc+dc)]||[]).forEach(function(j){
+        if(j===i)return;
+        var d=haversineKm(p,pts[j]);if(d<minD)minD=d;
+      });
+    }
+    return minD===Infinity?9999:minD;
+  });
+}
+
+function kMeansBalanced(pts,k,seed){
+  var s=seed+1;
+  function rand(){s=(s*1664525+1013904223)&0xffffffff;return(s>>>0)/4294967296;}
+  var centroids=[pts[Math.floor(rand()*pts.length)]];
+  for(var ci=1;ci<k;ci++){
+    var dists=pts.map(function(p){var m=Infinity;centroids.forEach(function(c){var dl=p.lat-c.lat,dn=p.lon-c.lon,d=dl*dl+dn*dn;if(d<m)m=d;});return m;});
+    var total=dists.reduce(function(a,b){return a+b;},0),r=rand()*total,acc=0;
+    for(var pi=0;pi<pts.length;pi++){acc+=dists[pi];if(acc>=r){centroids.push(pts[pi]);break;}}
+  }
+  var asgn=new Array(pts.length).fill(0);
+  for(var iter=0;iter<100;iter++){
+    var changed=false;
+    for(var i=0;i<pts.length;i++){
+      var best=0,bestD=Infinity;
+      for(var j=0;j<k;j++){var dl=pts[i].lat-centroids[j].lat,dn=pts[i].lon-centroids[j].lon,d=dl*dl+dn*dn;if(d<bestD){bestD=d;best=j;}}
+      if(asgn[i]!==best){asgn[i]=best;changed=true;}
+    }
+    if(!changed)break;
+    for(var j=0;j<k;j++){
+      var m=pts.filter(function(_,i){return asgn[i]===j;});
+      if(m.length)centroids[j]=centroid(m);
+    }
+  }
+  var target=pts.length/k;
+  for(var pass=0;pass<100;pass++){
+    var sizes=[];
+    for(var j=0;j<k;j++)sizes.push(pts.filter(function(_,i){return asgn[i]===j;}).length);
+    var maxJ=0,minJ=0;
+    for(var j=1;j<k;j++){if(sizes[j]>sizes[maxJ])maxJ=j;if(sizes[j]<sizes[minJ])minJ=j;}
+    if(sizes[maxJ]<=target*1.20&&sizes[minJ]>=target*0.80)break;
+    if(sizes[maxJ]<=sizes[minJ]+1)break;
+    var mc=centroid(pts.filter(function(_,i){return asgn[i]===minJ;}));
+    var bestI=pts.reduce(function(bi,p,i){
+      if(asgn[i]!==maxJ)return bi;
+      var dl=p.lat-mc.lat,dn=p.lon-mc.lon,d=dl*dl+dn*dn;
+      return(bi<0||d<(function(){var q=pts[bi],dl2=q.lat-mc.lat,dn2=q.lon-mc.lon;return dl2*dl2+dn2*dn2;})())?i:bi;
+    },-1);
+    if(bestI>=0)asgn[bestI]=minJ;else break;
+  }
+  return asgn;
+}
+
+function previewAutoDecoup(){
+  var k=parseInt(document.getElementById('autoNbLivreurs').value);
+  if(!k||k<1||k>30){toast('Nombre de livreurs invalide (1-30).');return;}
+  var validPts=points.filter(function(p){return p.lat&&p.lon;});
+  if(!validPts.length){toast('Aucun point GPS valide.');return;}
+  var medLat=getMedian(validPts.map(function(p){return p.lat;}));
+  var medLon=getMedian(validPts.map(function(p){return p.lon;}));
+  var geoFiltered=validPts.filter(function(p){return Math.abs(p.lat-medLat)<1.5&&Math.abs(p.lon-medLon)<1.5;});
+  var nearestDists=computeNearestDists(geoFiltered);
+  var sortedD=nearestDists.slice().sort(function(a,b){return a-b;});
+  var medianD=sortedD[Math.floor(sortedD.length/2)];
+  var threshold=Math.max(medianD*8,0.3);
+  var filtered=geoFiltered.filter(function(_,i){return nearestDists[i]<=threshold;});
+  var nExcluded=validPts.length-filtered.length;
+  if(!filtered.length){toast('Aucun point après filtrage.');return;}
+  var bestAsgn=null,bestScore=Infinity;
+  for(var seed=0;seed<8;seed++){
+    var asgn=kMeansBalanced(filtered,k,seed);
+    var sizes=[];for(var j=0;j<k;j++)sizes.push(filtered.filter(function(_,i){return asgn[i]===j;}).length);
+    var score=Math.max.apply(null,sizes)-Math.min.apply(null,sizes);
+    if(score<bestScore){bestScore=score;bestAsgn=asgn;}
+  }
+  var clusters=[];
+  for(var j=0;j<k;j++){
+    var mbrs=filtered.filter(function(_,i){return bestAsgn[i]===j;});
+    if(!mbrs.length)continue;
+    var c=centroid(mbrs);
+    var dists=mbrs.map(function(p){return haversineKm(c,p);}).sort(function(a,b){return a-b;});
+    var p75=dists[Math.floor(dists.length*0.75)]||0;
+    clusters.push({members:mbrs,centroid:c,kmEst:Math.round(p75*4.5*2)});
+  }
+  clusters.sort(function(a,b){return a.centroid.lon-b.centroid.lon;});
+  autoClusterResult=clusters;
+  var rows='',warnings=[];
+  if(nExcluded>0) rows='<div style="padding:8px 12px;font-size:12px;color:#f59e0b;background:rgba(245,158,11,.1);border-radius:10px;border:1px solid rgba(245,158,11,.3);margin-bottom:4px">⚠️ '+nExcluded+' colis isolés exclus du découpage automatique</div>';
+  clusters.forEach(function(cl,idx){
+    var n=cl.members.length,km=cl.kmEst,wC=n>150,wK=km>200;
+    var color=AUTO_COLORS[idx%AUTO_COLORS.length];
+    rows+='<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)">'
+      +'<div style="width:12px;height:12px;border-radius:50%;background:'+color+';flex-shrink:0"></div>'
+      +'<div style="font-size:13px;font-weight:700;flex:0 0 80px">Driver '+(idx+1)+'</div>'
+      +'<div style="flex:1;font-size:13px"><span style="color:'+(wC?'#f59e0b':'var(--ok)')+';font-weight:700">'+n+' colis</span>'
+      +' · <span style="color:'+(wK?'#f59e0b':'var(--muted)')+'">~'+km+' km</span></div>'
+      +(wC||wK?'<span>⚠️</span>':'<span style="color:var(--ok)">✓</span>')+'</div>';
+    if(wC)warnings.push('Driver '+(idx+1)+' : '+n+' colis (> 150 recommandés)');
+    if(wK)warnings.push('Driver '+(idx+1)+' : ~'+km+' km (> 200 km recommandés)');
+  });
+  document.getElementById('autoPreviewRows').innerHTML=rows;
+  var wEl=document.getElementById('autoWarning');
+  if(warnings.length){wEl.style.display='block';wEl.innerHTML='⚠️ <strong>Dépassements :</strong><br/>'+warnings.join('<br/>');}
+  else wEl.style.display='none';
+  document.getElementById('autoPreview').style.display='flex';
+  document.getElementById('btnApplyAuto').style.display='block';
+}
+
+function buildClusterPolygon(members){
+  if(members.length<3)return null;
+  var PAD=0.002;
+  var expanded=[];
+  members.forEach(function(p){
+    expanded.push([p.lat,p.lon]);
+    expanded.push([p.lat+PAD,p.lon]);expanded.push([p.lat-PAD,p.lon]);
+    expanded.push([p.lat,p.lon+PAD]);expanded.push([p.lat,p.lon-PAD]);
+    expanded.push([p.lat+PAD,p.lon+PAD]);expanded.push([p.lat-PAD,p.lon+PAD]);
+    expanded.push([p.lat+PAD,p.lon-PAD]);expanded.push([p.lat-PAD,p.lon-PAD]);
+  });
+  return andrewHull(expanded);
+}
+
+function andrewHull(pts){
+  if(pts.length<3)return pts;
+  pts=pts.slice().sort(function(a,b){return a[0]!==b[0]?a[0]-b[0]:a[1]-b[1];});
+  function cross(O,A,B){return(A[0]-O[0])*(B[1]-O[1])-(A[1]-O[1])*(B[0]-O[0]);}
+  var lower=[];
+  for(var i=0;i<pts.length;i++){while(lower.length>=2&&cross(lower[lower.length-2],lower[lower.length-1],pts[i])<=0)lower.pop();lower.push(pts[i]);}
+  var upper=[];
+  for(var i=pts.length-1;i>=0;i--){while(upper.length>=2&&cross(upper[upper.length-2],upper[upper.length-1],pts[i])<=0)upper.pop();upper.push(pts[i]);}
+  lower.pop();upper.pop();
+  return lower.concat(upper);
+}
+
+function applyAutoDecoup(){
+  if(!autoClusterResult)return;
+  var k=autoClusterResult.length;
+  tours=[];
+  Object.keys(tourDrawnLayers).forEach(function(id){try{drawnItems.removeLayer(tourDrawnLayers[id]);}catch(e){}});
+  for(var key in tourDrawnLayers)delete tourDrawnLayers[key];
+  autoClusterResult.forEach(function(cl,idx){
+    if(!cl.members.length)return;
+    var color=AUTO_COLORS[idx%AUTO_COLORS.length],name='Driver '+(idx+1),id=++tourIdCounter;
+    var hull=buildClusterPolygon(cl.members);
+    if(!hull||hull.length<3)return;
+    var layer=L.polygon(hull.map(function(p){return[p[0],p[1]];}),
+      {color:color,fillColor:color,fillOpacity:0.15,weight:2,opacity:0.9});
+    layer.bindTooltip(name,{permanent:true,direction:'center',className:'tour-label-tt'});
+    drawnItems.addLayer(layer);tourDrawnLayers[id]=layer;
+    (function(tid,ly){
+      ly.on('click',function(e){L.DomEvent.stopPropagation(e);if(ly.editing){if(ly.editing.enabled())ly.editing.disable();else ly.editing.enable();}});
+      ly.on('edit',function(){recountTourZone(tid);});
+    })(id,layer);
+    tours.push({id:id,name:name,color:color,
+      barcodes:cl.members.map(function(p){return p.barcode;}),
+      order:cl.members.map(function(p){return p.barcode;}),depot:null});
+  });
+  drawAllPoints();refreshTourList();rebuildScanMap();
+  closeAutoDecoup();
+  setTimeout(function(){try{var b=drawnItems.getBounds();if(b.isValid())map.fitBounds(b.pad(0.05));}catch(e){}},200);
+  toast('\u2705 '+k+' tournees creees - modifiables comme d habitude !');
+}
+
+
+
+</script>
+
+<!-- ══ MODAL DÉCOUPAGE AUTO ══ -->
+<div id="autoDecoupModal" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;width:min(480px,95vw);max-height:90vh;overflow-y:auto;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:18px;font-weight:800">🤖 Découpage automatique</div>
+      <span onclick="closeAutoDecoup()" style="cursor:pointer;font-size:22px;color:var(--muted)">✕</span>
+    </div>
+
+    <div style="font-size:13px;color:var(--muted)">L'algorithme propose un découpage équilibré selon le nombre de livreurs. Vous pourrez modifier librement les zones proposées.</div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Nombre de livreurs</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input type="number" id="autoNbLivreurs" min="1" max="30" value="5" style="width:80px;padding:8px 12px;font-size:18px;font-weight:800;text-align:center;border-radius:10px;border:2px solid var(--border);background:var(--surface2);color:var(--fg)"/>
+        <div style="font-size:13px;color:var(--muted)">livreurs pour <span id="autoNbColis" style="color:var(--fg);font-weight:700">0</span> colis</div>
+      </div>
+    </div>
+
+    <div id="autoPreview" style="display:none;flex-direction:column;gap:8px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Estimation par tournée</div>
+      <div id="autoPreviewRows" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div id="autoWarning" style="display:none;padding:10px 12px;background:rgba(240,180,41,.12);border:1px solid rgba(240,180,41,.3);border-radius:10px;font-size:12px;color:#f0b429"></div>
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button onclick="previewAutoDecoup()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--fg);font-size:14px;font-weight:700;cursor:pointer">👁 Prévisualiser</button>
+      <button onclick="applyAutoDecoup()" id="btnApplyAuto" style="flex:2;padding:12px;border-radius:10px;border:none;background:var(--accent2);color:#fff;font-size:14px;font-weight:700;cursor:pointer;display:none">✅ Appliquer le découpage</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
